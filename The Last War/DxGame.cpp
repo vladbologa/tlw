@@ -1,6 +1,6 @@
 /*----------------------------------------------
   DxGame.cpp - "The Last War" main source file
-		(c) 1999-2001 Vlad Bologa
+	(c) 1999-2001 Vlad Bologa & Emil Butiri
 ------------------------------------------------*/
 
 #include "stdafx.h"
@@ -85,6 +85,9 @@ LPDIRECTDRAWSURFACE7 pDDPanel = NULL;
 LPDIRECTDRAWSURFACE7 pDDTile[MAX_TILES];
 LPDIRECTDRAWSURFACE7 pDDMenuBegin, pDDMenuOpt;
 LPDIRECTDRAWSURFACE7 pDDSprite120x90[33];
+LPDIRECTDRAWSURFACE7 pDDSprite185x160;
+LPDIRECTDRAWSURFACE7 pDDSprite120x100[4];
+LPDIRECTDRAWSURFACE7 pDDSprite170x160;
 
 //Function prototypes
 LRESULT CALLBACK WndProc (HWND, UINT, WPARAM, LPARAM);
@@ -136,7 +139,7 @@ class GameEngine
 	BOOL LeftButtonPressed, RightButtonPressed;
 	BOOL IsSelecting, WaitSelection;
 	CMap Map;
-	CBmp dBar, TerrainType[256];
+	CBmp dBar, TerrainType[256], CCenter, Pyramid, lball[4];
 	BOOL fLMBPressed, oldLMBPressed;
 	int UnitCount;
 
@@ -149,7 +152,6 @@ public:
 	BOOL UpdateTerrain(int x = 0, int y = 0);
 	BOOL Load(int Level, int Reserved = 0);
 	void LoadTerrainTiles(int tileset = 0);
-	GameEngine();
 	~GameEngine();
 };
 
@@ -270,13 +272,26 @@ BOOL GameEngine::Update(int Reserved)
 		WaitSelection=FALSE;
 	}
 
+	RECT DestRect;
+	static int bframe=0;
+	static int sgn=1;
+
+	SetRect(&DestRect, 160-CurentX, 160-CurentY, 345-CurentX, 320-CurentY);
+	pDDBackBuffer->Blt(&DestRect, pDDSprite185x160, NULL, DDBLT_WAIT, NULL);
+	SetRect(&DestRect, 830-CurentX, 640-CurentY, 1000-CurentX, 800-CurentY);
+	pDDBackBuffer->Blt(&DestRect, pDDSprite170x160, NULL, DDBLT_WAIT, NULL);
+	
+	SetRect(&DestRect, 1000-CurentX, 700-CurentY, 1120-CurentX, 800-CurentY);
+	pDDBackBuffer->Blt(&DestRect, pDDSprite120x100[bframe/10], NULL, DDBLT_WAIT, NULL);
+	bframe+=sgn;
+	if (bframe==39) sgn=-1;
+	if (bframe==0) sgn=1;
+
 	plane=first;
 	while (plane)
 	{
 		if (RightButtonPressed&&plane->Selected()) plane->SetDestination(CurentX+m_x-60+rand()%10, CurentY+m_y-45+rand()%10);
 		plane->Update();
-
-		RECT DestRect;
 
 		SetRect(&DestRect, plane->GetX()-CurentX, plane->GetY()-CurentY, plane->GetX()+120-CurentX, plane->GetY()+90-CurentY);
 		if (plane->Selected())
@@ -300,7 +315,6 @@ BOOL GameEngine::Update(int Reserved)
 		pDDBackBuffer->ReleaseDC(hdc);
 	}
 	
-	RECT DestRect;
 	SetRect(&DestRect,0, 480-125, 640,480);
 	HRESULT hr;
 	hr = pDDBackBuffer->Blt(&DestRect, pDDPanel, NULL, DDBLT_WAIT, NULL);
@@ -445,11 +459,6 @@ void GameEngine::CorrectCoords()
 	if (CurentY > (Map.GetSizeY() * 80 - 480+125)) CurentY = Map.GetSizeY() * 80 - 480+125;
 }
 
-GameEngine::GameEngine()
-{
-
-}
-
 GameEngine::Load(int Level, int Reserved)
 {
 	CurentX = CurentY = 0;
@@ -483,21 +492,41 @@ void GameEngine::LoadTerrainTiles(int tileset)
 	TerrainType[7].Load("c:\\GameArt\\Tiles\\treer3.bmp");
 	TerrainType[8].Load("c:\\GameArt\\Tiles\\treer4.bmp");
 
+	lball[0].Load("c:\\GameArt\\Structures\\ball1.bmp");
+	lball[1].Load("c:\\GameArt\\Structures\\ball2.bmp");
+	lball[2].Load("c:\\GameArt\\Structures\\ball3.bmp");
+	lball[3].Load("c:\\GameArt\\Structures\\ball4.bmp");
+
 	dBar.Load("c:\\GameArt\\dbar.bmp");
+	CCenter.Load("c:\\GameArt\\Structures\\ccenter.bmp");
+	Pyramid.Load("c:\\GameArt\\Structures\\pyramid.bmp");
 
 	HDC hdc;
 
+	pDDSprite170x160->GetDC(&hdc);
+	Pyramid.Draw(hdc);
+	pDDSprite170x160->ReleaseDC(hdc);
+	
 	pDDPanel->GetDC(&hdc);
 	dBar.Draw(hdc);
 	pDDPanel->ReleaseDC(hdc);
 
+	pDDSprite185x160->GetDC(&hdc);
+	CCenter.Draw(hdc);
+	pDDSprite185x160->ReleaseDC(hdc);
+
 	for (int i = 0; i < MAX_TILES; i++)
 	{
-		HDC hdc;
-
 		pDDTile[i]->GetDC(&hdc);
 		TerrainType[i].Draw(hdc);
 		pDDTile[i]->ReleaseDC(hdc);
+	}
+
+	for (i=0; i<4; i++)
+	{
+		pDDSprite120x100[i]->GetDC(&hdc);
+		lball[i].Draw(hdc);
+		pDDSprite120x100[i]->ReleaseDC(hdc);
 	}
 }
 
@@ -608,8 +637,8 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 	switch (iMsg)
 	{
 	case WM_CREATE:
-		//PlayFile("c:\\GameArt\\Mini-Intro.avi", hwnd);
-		SendMessage(hwnd, WM_BEGINGAME, 0,0);
+		PlayFile("c:\\GameArt\\Mini-Intro.avi", hwnd);
+		//SendMessage(hwnd, WM_BEGINGAME, 0,0);
 		return 0;
 
 	case WM_BEGINGAME:
@@ -952,11 +981,54 @@ BOOL DirectDrawInit(HWND hwnd)
 		MessageBox(hwnd, "Error while creating offscreen surfaces. Restart the computer and try again.", "Error", MB_ICONEXCLAMATION | MB_OK);
 		return FALSE;
 	}
+	
+	Offscreen.dwWidth = 185;
+	Offscreen.dwHeight = 160;
+
+	hr = pDD7->CreateSurface(&Offscreen, &pDDSprite185x160, NULL);
+	if (hr!=DD_OK)
+	{
+		MessageBox(hwnd, "Error while creating offscreen surfaces. Restart the computer and try again.", "Error", MB_ICONEXCLAMATION | MB_OK);
+		return FALSE;
+	}
+	
+	Offscreen.dwWidth = 120;
+	Offscreen.dwHeight = 100;
+
+	for (i=0; i<4; i++)
+	{
+		hr = pDD7->CreateSurface(&Offscreen, &pDDSprite120x100[i], NULL);
+		if (hr!=DD_OK)
+		{
+			MessageBox(hwnd, "Error while creating offscreen surfaces. Restart the computer and try again.", "Error", MB_ICONEXCLAMATION | MB_OK);
+			return FALSE;
+		}
+	}
+
+	Offscreen.dwWidth = 170;
+	Offscreen.dwHeight = 160;
+
+	hr = pDD7->CreateSurface(&Offscreen, &pDDSprite170x160, NULL);
+	if (hr!=DD_OK)
+	{
+		MessageBox(hwnd, "Error while creating offscreen surfaces. Restart the computer and try again.", "Error", MB_ICONEXCLAMATION | MB_OK);
+		return FALSE;
+	}
+
 	return TRUE;
 }
 
 void DirectDrawUnInit()
 {
+	pDDSprite170x160->Release();
+	pDDSprite170x160=NULL;
+	for (int i=3; i>=0; i--)
+	{
+		pDDSprite120x100[i]->Release();
+		pDDSprite120x100[i]=NULL;
+	}
+	pDDSprite185x160->Release();
+	pDDSprite185x160=NULL;
 	pDDPanel->Release();
 	pDDPanel=NULL;
 	pDDMenuOpt->Release();
@@ -969,7 +1041,7 @@ void DirectDrawUnInit()
 	pDDOffscreen2=NULL;
 	pDDOffscreen->Release();
 	pDDOffscreen=NULL;
-	for (int i=32; i>=0; i--)
+	for (i=32; i>=0; i--)
 	{
 			pDDSprite120x90[i]->Release();
 			pDDSprite120x90[i]=NULL;
