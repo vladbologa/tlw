@@ -21,6 +21,7 @@
 
 #define KEYDOWN(name,key) (name[key] & 0x80)
 #define WM_GRAPHNOTIFY  WM_USER+13
+#define WM_BEGINGAME	WM_USER+14
 #define HELPER_RELEASE(x) { if (x) x->Release(); x = NULL; }
 
 #define PLAYING TRUE
@@ -31,7 +32,7 @@
 #define LM_STATIC 0
 #define LM_DINAMIC 1
 
-#define MAX_TILES 10
+#define MAX_TILES 9
 
 enum GameState
 {
@@ -41,7 +42,7 @@ enum GameState
 	NEW_GAME
 };
 
-GameState State = MAIN_MENU;
+GameState State = GAME_ACTIVE;
 BOOL FilmState = STOPPED;
 BOOL IsReading = FALSE;
 
@@ -207,12 +208,13 @@ BOOL GameEngine::Update(int Reserved)
 		IsSelecting=FALSE;
 		WaitSelection=FALSE;
 	}
+
 	if (WaitSelection&&!LeftButtonPressed)
 	{
 		BOOL sel=FALSE;
 
 		plane=first;
-		while (plane->next) plane=plane->next;
+		if (plane) while (plane->next) plane=plane->next;
 		while (plane)
 		{
 			POINT pt;
@@ -306,7 +308,6 @@ BOOL GameEngine::Update(int Reserved)
 	}
 	oldLMBPressed=LeftButtonPressed;
 
-
 	pDDPrimary->Flip(NULL, DDFLIP_WAIT);
 	
 	if (KEYDOWN(buffer, DIK_ESCAPE))
@@ -324,7 +325,7 @@ BOOL GameEngine::Update(int Reserved)
 					first=(CUnit *) new CUnit;
 					first->SetPosition(320,200);
 					first->SetDestination(320,200);
-					first->Select(TRUE);
+					first->Select(FALSE);
 					first->next=NULL;
 					first->prev=NULL;
 			}
@@ -353,44 +354,47 @@ BOOL GameEngine::Update(int Reserved)
 		{
 			plane=first;
 			change=0;
-			if (first->Selected()&&(!first->next))
+			if (first)
 			{
-				delete plane;
-				first=NULL;
-				change=1;
-			}
-			else if (first->Selected())
-			{
-				plane=plane->next;
-				plane->prev=NULL;
-				delete first;
-				first=plane;
-				change=1;
-			}
-			else
-			{
-				while ((plane->next)&&(!plane->Selected())) plane=plane->next;
-				if (plane->next)
+				if (first->Selected()&&(!first->next))
 				{
-					temp=plane;
-					plane=plane->prev;
-					plane->next=temp->next;
-					delete temp;
-					temp=plane;
-					plane=plane->next;
-					plane->prev=temp;
-					change=1;
-				}
-				else if (plane->Selected())
-				{
-					temp=plane->prev;
-					temp->next=NULL;
 					delete plane;
-					plane=NULL;
+					first=NULL;
 					change=1;
 				}
+				else if (first->Selected())
+				{
+					plane=plane->next;
+					plane->prev=NULL;
+					delete first;
+					first=plane;
+					change=1;
+				}
+				else
+				{
+					while ((plane->next)&&(!plane->Selected())) plane=plane->next;
+					if (plane->next)
+					{
+						temp=plane;
+						plane=plane->prev;
+						plane->next=temp->next;
+						delete temp;
+						temp=plane;
+						plane=plane->next;
+						plane->prev=temp;
+						change=1;
+					}
+					else if (plane->Selected())
+					{
+						temp=plane->prev;
+						temp->next=NULL;
+						delete plane;
+						plane=NULL;
+						change=1;
+					}
+				}
+				if (change) UnitCount--;
 			}
-			if (change) UnitCount--;
 		}
 		while (change);
 	}
@@ -435,6 +439,7 @@ GameEngine::Load(int Level, int Reserved)
 	LoadTerrainTiles();	
 	fLMBPressed=oldLMBPressed=FALSE;
 
+	first=NULL;
 	first=(CUnit *) new CUnit;
 	first->SetPosition(320,200);
 	first->SetDestination(320,100);
@@ -466,7 +471,7 @@ void GameEngine::LoadTerrainTiles(int tileset)
 	dBar.Draw(hdc);
 	pDDPanel->ReleaseDC(hdc);
 
-	for (int i = 0; i < 9; i++)
+	for (int i = 0; i < MAX_TILES; i++)
 	{
 		HDC hdc;
 
@@ -583,10 +588,15 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 	switch (iMsg)
 	{
 	case WM_CREATE:
-		//if (!StartGame(hwnd)) PostQuitMessage(0);
-		PlayFile("c:\\GameArt\\Mini-Intro.avi", hwnd);
+		//PlayFile("c:\\GameArt\\Mini-Intro.avi", hwnd);
+		SendMessage(hwnd, WM_BEGINGAME, 0,0);
 		return 0;
 
+	case WM_BEGINGAME:
+		StartGame(hwnd);
+		PostQuitMessage(0);
+		return 0;
+	
 	case WM_GRAPHNOTIFY:
 		HRESULT hr;
 		while (SUCCEEDED(pimex->GetEvent(&evCode, &evParam1, &evParam2, 0)))
@@ -606,8 +616,7 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
                     HELPER_RELEASE(pimex);
 
                     FilmState = STOPPED;
-					if (!StartGame(hwnd))
-						PostQuitMessage(0);
+					SendMessage(hwnd, WM_BEGINGAME, 0,0);
 					break;
                   }
               }
@@ -717,7 +726,7 @@ BOOL DirectDrawInit(HWND hwnd)
 		MessageBox(hwnd,"Error while setting DirectDraw Cooperative level.","Error",MB_ICONEXCLAMATION | MB_OK);
 		return FALSE;
 	}
-	hr = pDD7->SetDisplayMode(640, 480,16,0,0);
+	hr = pDD7->SetDisplayMode(640,480,16,0,0);
 	if (hr!=DD_OK) 
 	{
 		MessageBox(hwnd,"Error while setting display mode.","Error",MB_ICONEXCLAMATION | MB_OK);

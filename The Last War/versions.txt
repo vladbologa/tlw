@@ -1,7 +1,25 @@
 The Last War - Version History
+------------------------------
 
-0.2.3 - minor bugfixes (sept. 2K)
-0.2.2 - added menubar (june 2K)
-0.2.1 - ported to DirectX 7, graphic changes (nov 1999)
-0.2 - working initial game engine
-0.1 - initial working version (summer 1999)
+TLW 0.2.4 (may 2001):
+*bugfixes
+*improved unit selection
+*rewrote lots of code (faster, better memory management)
+*new intro
+
+TLW 0.2.3 (sept. 2K):
+*minor bugfixes
+
+TLW 0.2.2  (june 2K):
+*added menubar
+
+TLW 0.2.1 (nov 1999)
+*ported to DirectX 7
+*graphic changes (shadows)
+
+TLW 0.2:
+*initial game engine
+*modified main menu
+
+TLW 0.1 (summer 1999):
+*initial version
