@@ -21,7 +21,7 @@
 #include <ddraw.h>
 #include <dinput.h>
 
-#define  VERSION "v0.7.1b"
+#define  VERSION "v1.0"
  
 #define KEYDOWN(name,key) (name[key] & 0x80)
 #define WM_GRAPHNOTIFY  WM_USER+13
@@ -33,6 +33,7 @@
 
 #define TILESIZE		160
 #define MAX_TILES		5
+#define MAX_UNIT		100
 
 #define CCENTER			1
 #define OILPLANT		2
@@ -60,7 +61,9 @@ enum GameState
 	MENU_OPTIONS,
 	GAME_OPTIONS,
 	EXIT_CONFIRM,
-	EXIT_GAME_CONFIRM
+	EXIT_GAME_CONFIRM,
+	WIN_MESSAGE,
+	LOSE_MESSAGE
 };
 
 GameState State = MAIN_MENU;
@@ -73,7 +76,7 @@ RECT ScreenSize;
 
 CBmp bmp;
 CBmp MenuBack, MINewGame[2], MIExit[2], MILoadGame[2], MIOptions[2];
-CBmp Options, bmpOK, bmpOKHover, bmpBtn1, bmpBtn2;
+CBmp Options, bmpOK, bmpOKHover, bmpBtn1, bmpBtn2, bmpEOK, bmpEOKHover;
 CBmp Load, Cursor;
 
 LONG      evCode;
@@ -134,9 +137,10 @@ LPDIRECTDRAWSURFACE7 pDDPauseOptions, pDDPauseEMenu, pDDPauseEGame, pDDPauseCont
 LPDIRECTDRAWSURFACE7 pDDOptions, pDDOptionsOKP, pDDOptionsOKHover, pDDOptionsBtn1, pDDOptionsBtn2;
 LPDIRECTDRAWSURFACE7 pDDCustom, pDDCustomOKP, pDDCustomOKHover;
 LPDIRECTDRAWSURFACE7 pDDError, pDDErrorOKP, pDDErrorOKHover;
+LPDIRECTDRAWSURFACE7 pDDWinMessage, pDDLoseMessage;
 LPDIRECTDRAWSURFACE7 pDDConfirm, pDDConfirmOKP, pDDConfirmOKHover, pDDConfirmCancelP, pDDConfirmCancelHover;
-LPDIRECTDRAWSURFACE7 pDDExplosionBig[15];
-LPDIRECTDRAWSURFACE7 pDDMissile;
+LPDIRECTDRAWSURFACE7 pDDExplosionBig[15],pDDMissile[8];
+LPDIRECTDRAWSURFACE7 pDDMoney;
 
 //Function prototypes
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -192,22 +196,28 @@ CBmpList *BGActual, *BGNext, *BGFirst, *OptActual, *OptNext, *OptFirst;
 class GameEngine
 {
 	BOOL MouseOnPanel();
+	void ReturnToMainMenu(HWND hwnd);
+
 	int CurentX, CurentY;
 	int mouse_x, mouse_y, fmouse_x, fmouse_y;
 	BOOL IsSelecting, WaitSelection, bCursorTarget;
 	BOOL bLMB, bRMB, bLMBFirst, bLMBOld, bRMBOld;
 	BOOL MenuButtonPressed, MenuButtonPressedOld, PlaneButtonPressed, PlaneButtonPressedOld, bF15BtnP, bF15BtnPOld;
 	BOOL bCCenterBP, bCCenterBPOld, bOPBP, bOPBPOld, bAirBP, bAirBPOld, bPyBP, bPyBPOld;
-	CMap Map;
-	int UnitCount, SelectedCount;
-	int StructSelType, iCreateBuilding;
+	int iSelectedCount, iStructSelType, iCreateBuilding;
+	int iUnitCountPlayer, iStructCountPlayer, iUnitCountComp, iStructCountComp;
+	int CStartX, CStartY;
+	long lMoneyPlayer, lMoneyComp;
 	
+	CMap Map;
 	CUnit *Unit, *first, *temp;
 	CStructure *Struct, *sfirst, *stemp;
 	CMissile *Missile, *mfirst, *mtemp;
 public:
+	int UpdateWinLoseDialog(HWND hwnd);
 	BOOL UpdatePauseMenu(HWND hwnd);
 	BOOL UpdateConfirmDialog(HWND hwnd);
+	void AddUnit(int iType, int iSubType, CStructure *Parent, int iPlayer);
 	void AddMissile(CUnit *Parent, CUnit *uDest, CStructure *sDest, int iDestType);
 	void GetMouseCoords(int &x, int &y);
 	void ShowMouse();
@@ -216,7 +226,6 @@ public:
 	BOOL UpdateTerrain(int x = 0, int y = 0);
 	BOOL Load(char *filename);
 	void LoadTerrainTiles(int tileset = 0);
-	void AddUnit(int iType, int iSubType, CStructure *Parent);
 };
 
 BOOL GameEngine::Update(int Reserved)
@@ -227,7 +236,7 @@ BOOL GameEngine::Update(int Reserved)
 	RECT rButton,rButtonSm;
 	HRESULT hr;
 	static HPEN hPen=CreatePen(PS_SOLID, 1, RGB(20,200,40));
-	static int add=0;
+	static int add=0, iTime=0;
 	BOOL bMouseOnPanel, bAttack=FALSE;
 
 	GetMouseCoords(m_x, m_y);
@@ -239,6 +248,8 @@ BOOL GameEngine::Update(int Reserved)
 	}
 	bMouseOnPanel=MouseOnPanel();
 	bCursorTarget=FALSE;
+	iTime++;
+	if (iTime==300) iTime=0;
 	
 //***********Scrolling***********
 	if (!IsSelecting)
@@ -268,76 +279,82 @@ BOOL GameEngine::Update(int Reserved)
 		Unit=first;
 		while (Unit)
 		{
-			pt.x=Unit->GetX()-CurentX;
-			pt.y=Unit->GetY()-CurentY;
-			
-			rc.top=fmouse_y;
-			rc.left=fmouse_x;
-			rc.bottom=mouse_y;
-			rc.right=mouse_x;
-
-			r_Unit.top=pt.y;
-			r_Unit.left=pt.x;
-			r_Unit.bottom=pt.y+90;
-			r_Unit.right=pt.x+120;
-			
-			if (rc.top>rc.bottom){ tmp=rc.top; rc.top=rc.bottom; rc.bottom=tmp;}
-			if (rc.left>rc.right){ tmp=rc.left; rc.left=rc.right; rc.right=tmp;}
-			if (rc.right>704) rc.right=705;
-
-			if (IntersectRect(&temp, &rc, &r_Unit)) 
+			if (Unit->GetPlayer()==1)
 			{
-				Unit->Select(TRUE);
-				iNrSel++;
+				pt.x=Unit->GetX()-CurentX;
+				pt.y=Unit->GetY()-CurentY;
+				
+				rc.top=fmouse_y;
+				rc.left=fmouse_x;
+				rc.bottom=mouse_y;
+				rc.right=mouse_x;
+
+				r_Unit.top=pt.y;
+				r_Unit.left=pt.x;
+				r_Unit.bottom=pt.y+90;
+				r_Unit.right=pt.x+120;
+				
+				if (rc.top>rc.bottom){ tmp=rc.top; rc.top=rc.bottom; rc.bottom=tmp;}
+				if (rc.left>rc.right){ tmp=rc.left; rc.left=rc.right; rc.right=tmp;}
+				if (rc.right>704) rc.right=705;
+
+				if (IntersectRect(&temp, &rc, &r_Unit)) 
+				{
+					Unit->Select(TRUE);
+					iNrSel++;
+				}
+				else Unit->Select(FALSE);
 			}
-			else Unit->Select(FALSE);
 			Unit=Unit->next;
 		}
 		
 		Struct=sfirst;
 		while (Struct)
 		{
-			pt.x=Struct->GetX()-CurentX;
-			pt.y=Struct->GetY()-CurentY;
-				
-			rc.top=fmouse_y;
-			rc.left=fmouse_x;
-			rc.bottom=mouse_y;
-			rc.right=mouse_x;
-
-			r_Structure.top=pt.y;
-			r_Structure.left=pt.x;
-			switch (Struct->GetType())
+			if (Struct->GetPlayer()==1)
 			{
-			case 1:
-				r_Structure.bottom=pt.y+160;
-				r_Structure.right=pt.x+185;
-				break;
-			case 2:
-				r_Structure.bottom=pt.y+212;
-				r_Structure.right=pt.x+295;
-				break;
-			case 3:
-				r_Structure.bottom=pt.y+160;
-				r_Structure.right=pt.x+180;
-				break;
-			case 4:
-				r_Structure.bottom=pt.y+265;
-				r_Structure.right=pt.x+290;
-				break;
-			}
-						
-			if (rc.top>rc.bottom){ tmp=rc.top; rc.top=rc.bottom; rc.bottom=tmp;}
-			if (rc.left>rc.right){ tmp=rc.left; rc.left=rc.right; rc.right=tmp;}
-			if (rc.right>704) rc.right=705;
+				pt.x=Struct->GetX()-CurentX;
+				pt.y=Struct->GetY()-CurentY;
+					
+				rc.top=fmouse_y;
+				rc.left=fmouse_x;
+				rc.bottom=mouse_y;
+				rc.right=mouse_x;
 
-			if (IntersectRect(&temp, &rc, &r_Structure)&&(!iNrSel))
-			{
-				Struct->Select(TRUE);
-				iNrSel++;
-				iStructSel++;
+				r_Structure.top=pt.y;
+				r_Structure.left=pt.x;
+				switch (Struct->GetType())
+				{
+				case 1:
+					r_Structure.bottom=pt.y+160;
+					r_Structure.right=pt.x+185;
+					break;
+				case 2:
+					r_Structure.bottom=pt.y+212;
+					r_Structure.right=pt.x+295;
+					break;
+				case 3:
+					r_Structure.bottom=pt.y+160;
+					r_Structure.right=pt.x+180;
+					break;
+				case 4:
+					r_Structure.bottom=pt.y+265;
+					r_Structure.right=pt.x+290;
+					break;
+				}
+							
+				if (rc.top>rc.bottom){ tmp=rc.top; rc.top=rc.bottom; rc.bottom=tmp;}
+				if (rc.left>rc.right){ tmp=rc.left; rc.left=rc.right; rc.right=tmp;}
+				if (rc.right>704) rc.right=705;
+
+				if (IntersectRect(&temp, &rc, &r_Structure)&&(!iNrSel))
+				{
+					Struct->Select(TRUE);
+					iNrSel++;
+					iStructSel++;
+				}
+				else Struct->Select(FALSE);
 			}
-			else Struct->Select(FALSE);
 			Struct=Struct->next;
 		}
 		
@@ -359,132 +376,138 @@ BOOL GameEngine::Update(int Reserved)
 		if (Unit) while (Unit->next) Unit=Unit->next;
 		while (Unit)
 		{
-			CursorOnUnit = 0;
-			r_Unit.top=Unit->GetY()-CurentY;
-			r_Unit.left=Unit->GetX()-CurentX;
-			r_Unit.bottom=r_Unit.top+90;
-			r_Unit.right=r_Unit.left+120;
-
-			if (PtInRect(&r_Unit, pt))
+			if (Unit->GetPlayer()==1)
 			{
-				int relx, rely, poz;
-				DDSURFACEDESC2 sDesc;
-				sDesc.dwSize=sizeof(sDesc);
-				int frame=Unit->GetCurrentFrame();
-				
-				relx=mouse_x-r_Unit.left;
-				rely=mouse_y-r_Unit.top;
-				if (Unit->GetSubType()==2) frame+=33;
-				if (pDDSprite120x90[frame]->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
-				{
-					PBYTE mem=(PBYTE) sDesc.lpSurface;
-					poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+				CursorOnUnit = 0;
+				r_Unit.top=Unit->GetY()-CurentY;
+				r_Unit.left=Unit->GetX()-CurentX;
+				r_Unit.bottom=r_Unit.top+90;
+				r_Unit.right=r_Unit.left+120;
 
-					if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnUnit=1;
-					pDDSprite120x90[frame]->Unlock(NULL);
-				}
-			}
-			
-			if (CursorOnUnit)
-			{ 	
-				if (!usel)
+				if (PtInRect(&r_Unit, pt))
 				{
-					Unit->Select(TRUE);
-					usel=TRUE;
-					iNrSel++;
+					int relx, rely, poz;
+					DDSURFACEDESC2 sDesc;
+					sDesc.dwSize=sizeof(sDesc);
+					int frame=Unit->GetCurrentFrame();
+					
+					relx=mouse_x-r_Unit.left;
+					rely=mouse_y-r_Unit.top;
+					if (Unit->GetSubType()==2) frame+=33;
+					if (pDDSprite120x90[frame]->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+					{
+						PBYTE mem=(PBYTE) sDesc.lpSurface;
+						poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+						if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnUnit=1;
+						pDDSprite120x90[frame]->Unlock(NULL);
+					}
+				}
+				
+				if (CursorOnUnit)
+				{ 	
+					if (!usel)
+					{
+						Unit->Select(TRUE);
+						usel=TRUE;
+						iNrSel++;
+					}
+					else Unit->Select(FALSE);
 				}
 				else Unit->Select(FALSE);
 			}
-			else Unit->Select(FALSE);
 			Unit=Unit->prev;
 		}
 		
 		Struct=sfirst;
 		while (Struct)
 		{
-			CursorOnStructure = 0;
-			r_Structure.top=Struct->GetY()-CurentY;
-			r_Structure.left=Struct->GetX()-CurentX;
-			switch (Struct->GetType())
+			if (Struct->GetPlayer()==1)
 			{
-			case 1:
-				r_Structure.bottom=r_Structure.top + 160;
-				r_Structure.right=r_Structure.left + 185;
-				break;
-			case 2:
-				r_Structure.bottom=r_Structure.top + 212;
-				r_Structure.right=r_Structure.left + 295;
-				break;
-			case 3:
-				r_Structure.bottom=r_Structure.top + 160;
-				r_Structure.right=r_Structure.left + 180;
-				break;
-			case 4:
-				r_Structure.bottom=r_Structure.top + 265;
-				r_Structure.right=r_Structure.left + 290;
-				break;
-			}
-
-			if (PtInRect(&r_Structure, pt))
-			{
-				int relx, rely, poz;
-				DDSURFACEDESC2 sDesc;
-				sDesc.dwSize=sizeof(sDesc);	
-					
-				relx=mouse_x-r_Structure.left;
-				rely=mouse_y-r_Structure.top;
+				CursorOnStructure = 0;
+				r_Structure.top=Struct->GetY()-CurentY;
+				r_Structure.left=Struct->GetX()-CurentX;
 				switch (Struct->GetType())
 				{
 				case 1:
-					if (pDDCCenterMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
-					{
-						PBYTE mem=(PBYTE) sDesc.lpSurface;
-						poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
-
-						if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
-							pDDCCenterMask->Unlock(NULL);
-					}
+					r_Structure.bottom=r_Structure.top + 160;
+					r_Structure.right=r_Structure.left + 185;
 					break;
 				case 2:
-					if (pDDOilPlantMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
-					{
-						PBYTE mem=(PBYTE) sDesc.lpSurface;
-						poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
-
-						if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
-							pDDOilPlantMask->Unlock(NULL);
-					}
+					r_Structure.bottom=r_Structure.top + 212;
+					r_Structure.right=r_Structure.left + 295;
 					break;
 				case 3:
-					if (pDDPyramidMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
-					{
-						PBYTE mem=(PBYTE) sDesc.lpSurface;
-						poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
-
-						if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
-							pDDPyramidMask->Unlock(NULL);
-					}
+					r_Structure.bottom=r_Structure.top + 160;
+					r_Structure.right=r_Structure.left + 180;
 					break;
 				case 4:
-					if (pDDAirportMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
-					{
-						PBYTE mem=(PBYTE) sDesc.lpSurface;
-						poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
-
-						if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
-							pDDAirportMask->Unlock(NULL);
-					}
+					r_Structure.bottom=r_Structure.top + 265;
+					r_Structure.right=r_Structure.left + 290;
 					break;
 				}
-			}
 
-			if (CursorOnStructure&&(!iNrSel))
-			{
-				Struct->Select(TRUE);
-				iNrSel++;
-				iStructSel++;
+				if (PtInRect(&r_Structure, pt))
+				{
+					int relx, rely, poz;
+					DDSURFACEDESC2 sDesc;
+					sDesc.dwSize=sizeof(sDesc);	
+						
+					relx=mouse_x-r_Structure.left;
+					rely=mouse_y-r_Structure.top;
+					switch (Struct->GetType())
+					{
+					case 1:
+						if (pDDCCenterMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+						{
+							PBYTE mem=(PBYTE) sDesc.lpSurface;
+							poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+							if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
+								pDDCCenterMask->Unlock(NULL);
+						}
+						break;
+					case 2:
+						if (pDDOilPlantMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+						{
+							PBYTE mem=(PBYTE) sDesc.lpSurface;
+							poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+							if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
+								pDDOilPlantMask->Unlock(NULL);
+						}
+						break;
+					case 3:
+						if (pDDPyramidMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+						{
+							PBYTE mem=(PBYTE) sDesc.lpSurface;
+							poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+							if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
+								pDDPyramidMask->Unlock(NULL);
+						}
+						break;
+					case 4:
+						if (pDDAirportMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+						{
+							PBYTE mem=(PBYTE) sDesc.lpSurface;
+							poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+							if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
+								pDDAirportMask->Unlock(NULL);
+						}
+						break;
+					}
+				}
+
+				if (CursorOnStructure&&(!iNrSel))
+				{
+					Struct->Select(TRUE);
+					iNrSel++;
+					iStructSel++;
+				}
+				else Struct->Select(FALSE);
 			}
-			else Struct->Select(FALSE);
 			Struct=Struct->next;
 		}
 
@@ -507,6 +530,11 @@ BOOL GameEngine::Update(int Reserved)
 	while (Struct)
 	{
 		Struct->Update();
+		if (Struct->GetType()==2&&!iTime)
+		{
+			if (Struct->GetPlayer()==1) lMoneyPlayer+=8;
+			else if (Struct->GetPlayer()==2) lMoneyComp+=8;
+		}
 		int iEF=Struct->GetExplodeFrame();
 		switch(Struct->GetType())
 		{
@@ -573,7 +601,7 @@ BOOL GameEngine::Update(int Reserved)
 			r_Unit.bottom=r_Unit.top+90;
 			r_Unit.right=r_Unit.left+120;
 
-			if (PtInRect(&r_Unit, pt))
+			if (PtInRect(&r_Unit, pt)&&Unit->GetPlayer()==2)
 			{
 				int relx, rely, poz;
 				DDSURFACEDESC2 sDesc;
@@ -622,7 +650,7 @@ BOOL GameEngine::Update(int Reserved)
 				break;
 			}
 
-			if (PtInRect(&r_Structure, pt))
+			if (PtInRect(&r_Structure, pt)&&Struct->GetPlayer()==2)
 			{
 				int relx, rely, poz;
 				DDSURFACEDESC2 sDesc;
@@ -714,7 +742,7 @@ BOOL GameEngine::Update(int Reserved)
 			r_Unit.bottom=r_Unit.top+90;
 			r_Unit.right=r_Unit.left+120;
 
-			if (PtInRect(&r_Unit, pt))
+			if (PtInRect(&r_Unit, pt)&&Unit->GetPlayer()==2)
 			{
 				int relx, rely, poz;
 				DDSURFACEDESC2 sDesc;
@@ -776,7 +804,7 @@ BOOL GameEngine::Update(int Reserved)
 				break;
 			}
 
-			if (PtInRect(&r_Structure, pt))
+			if (PtInRect(&r_Structure, pt)&&Struct->GetPlayer()==2)
 			{
 				int relx, rely, poz;
 				DDSURFACEDESC2 sDesc;
@@ -853,7 +881,7 @@ BOOL GameEngine::Update(int Reserved)
 		temp=first;
 		while (temp)
 		{
-			if (temp->Selected()) temp->SetTarget(Unit, NULL, 1);
+			if (temp->Selected()&&Unit->GetPlayer()==2) temp->SetTarget(Unit, NULL, 1);
 			temp=temp->next;
 		}
 	}
@@ -868,7 +896,7 @@ BOOL GameEngine::Update(int Reserved)
 		temp=first;
 		while (temp)
 		{
-			if (temp->Selected()) temp->SetTarget(NULL, Struct, 2);
+			if (temp->Selected()&&Struct->GetPlayer()==2) temp->SetTarget(NULL, Struct, 2);
 			temp=temp->next;
 		}
 	}
@@ -879,7 +907,7 @@ BOOL GameEngine::Update(int Reserved)
 	{
 		Missile->Update();
 		SetRect(&DestRect, Missile->GetX()-CurentX, Missile->GetY()-CurentY,40+Missile->GetX()-CurentX, 40+Missile->GetY()-CurentY) ;
-		pDDBackBuffer->Blt(&DestRect, pDDMissile, NULL, DDBLT_WAIT|DDBLT_KEYSRC, NULL);
+		pDDBackBuffer->Blt(&DestRect, pDDMissile[Missile->GetFrame()], NULL, DDBLT_WAIT|DDBLT_KEYSRC, NULL);
 		Missile=Missile->next;
 	}
 
@@ -925,28 +953,29 @@ BOOL GameEngine::Update(int Reserved)
 					bCB=0;
 				}
 			}
-		if (bLMBOld&&(!bLMB)&&bCB)
+		if (bLMBOld&&(!bLMB)&&bCB&&!bMouseOnPanel)
 		{
 			Struct=sfirst;
 			while (Struct->next) Struct=Struct->next;
 			switch (iCreateBuilding)
 			{
 			case 1:
-				stemp=(CStructCCenter *) new CStructCCenter;
+				stemp=new CStructCCenter;
 				break;
 			case 2:
-				stemp=(CStructOilPlant *) new CStructOilPlant;
+				stemp=new CStructOilPlant;
 				break;
 			case 3:
-				stemp=(CStructAirport *) new CStructAirport;
+				stemp=new CStructAirport;
 				break;
 			case 4:
-				stemp=(CStructPyramid *) new CStructPyramid;
+				stemp=new CStructPyramid;
 				break;
 			}
 			Struct->next=stemp;
 			stemp->SetPosition(create_x+CurentX,create_y+CurentY,&Map);
 			stemp->next=NULL;
+			stemp->SetPlayer(1);
 			iCreateBuilding=0;
 		}
 	}
@@ -966,11 +995,11 @@ BOOL GameEngine::Update(int Reserved)
 		Unit=Unit->next;
 	}
 
-	SelectedCount=0;
+	iSelectedCount=0;
 	Unit=first;
 	while (Unit)
 	{
-		if (Unit->Selected()) SelectedCount++;
+		if (Unit->Selected()) iSelectedCount++;
 		Unit=Unit->next;
 	}
 
@@ -980,17 +1009,17 @@ BOOL GameEngine::Update(int Reserved)
 		if (!bRMB&&bRMBOld&&Unit->Selected()&&!bMouseOnPanel&&!bAttack) 
 		{
 			c++;
-			if (SelectedCount%2)
+			if (iSelectedCount%2)
 			{
-				if (c<=SelectedCount/2)
+				if (c<=iSelectedCount/2)
 				{
-					p=((SelectedCount-1)/2)-c+1;
+					p=((iSelectedCount-1)/2)-c+1;
 					vx=(-20)*p;
 					vy=(-20)*p;
 				}
-				else if (c>(SelectedCount/2)+1)
+				else if (c>(iSelectedCount/2)+1)
 				{
-					p=c-((SelectedCount-1)/2)-1;
+					p=c-((iSelectedCount-1)/2)-1;
 					vx=(-20)*p;
 					vy=20*p;
 				}
@@ -998,21 +1027,21 @@ BOOL GameEngine::Update(int Reserved)
 			}
 			else
 			{
-				if (c<SelectedCount/2)
+				if (c<iSelectedCount/2)
 				{
-					p=((SelectedCount-1)/2)-c+1;
+					p=((iSelectedCount-1)/2)-c+1;
 					vx=(-20)*p;
 					vy=(-20)*p;
 				}
-				else if (c>(SelectedCount/2)+1)
+				else if (c>(iSelectedCount/2)+1)
 				{
-					p=c-((SelectedCount-1)/2)-1;
+					p=c-((iSelectedCount-1)/2)-1;
 					vx=(-20)*(p-1);
 					vy=20*p;
 				}
 				else
 				{
-					if (c==SelectedCount/2) vx=vy=0;
+					if (c==iSelectedCount/2) vx=vy=0;
 					else
 					{
 						vx=0;
@@ -1078,6 +1107,139 @@ BOOL GameEngine::Update(int Reserved)
 		Unit=Unit->next;
 	}	
 
+	//Computer oponent AI
+	iUnitCountPlayer=iUnitCountComp=iStructCountPlayer=iStructCountComp=0;
+	Unit=first;
+	while (Unit)
+	{
+		if (Unit->GetPlayer()==1) iUnitCountPlayer++;
+		else if (Unit->GetPlayer()==2) iUnitCountComp++;
+		Unit=Unit->next;
+	}
+	Struct=sfirst;
+	while (Struct)
+	{
+		if (Struct->GetPlayer()==1) iStructCountPlayer++;
+		else if (Struct->GetPlayer()==2) 
+		{
+			if (Struct->GetType()==4)
+			{
+				if (iUnitCountComp<MAX_UNIT) 
+					if (!Struct->Building()) Struct->BuildUnit(1);
+				if (Struct->UBComplete()) AddUnit(LWU_AIR, LWU_PLANE,Struct,2);
+			}
+			iStructCountComp++;
+		}
+		Struct=Struct->next;
+	}
+
+	if (!iStructCountPlayer&&!iUnitCountPlayer) State=LOSE_MESSAGE;
+	if (!iStructCountComp&&!iUnitCountComp) State=WIN_MESSAGE;
+	if (State==LOSE_MESSAGE||State==WIN_MESSAGE)
+	{
+		pDDOffscreen->Blt(NULL, pDDBackBuffer, NULL, DDBLT_WAIT, NULL);
+		DarkenScreen();
+	}
+
+	Unit=first;
+	while (Unit)
+	{
+		if (!Unit->GetTargetType())
+		{
+			Struct=sfirst;
+			while (Struct)
+			{
+				if (Unit->GetPlayer()!=Struct->GetPlayer())
+				{
+					long dist;
+					dist=(Unit->GetX()-Struct->GetX())*(Unit->GetX()-Struct->GetX())+(Unit->GetY()-Struct->GetY())*(Unit->GetY()-Struct->GetY());
+					if (dist<360000L) 
+					{
+						Unit->SetTarget(NULL, Struct, 2);
+						break;
+					}
+				}
+				Struct=Struct->next;
+			}
+
+			temp=first;
+			while (temp)
+			{
+				if (Unit->GetPlayer()!=temp->GetPlayer())
+				{
+					long dist;
+					dist=(Unit->GetX()-temp->GetX())*(Unit->GetX()-temp->GetX())+(Unit->GetY()-temp->GetY())*(Unit->GetY()-temp->GetY());
+					if (dist<360000L) 
+					{
+						Unit->SetTarget(temp, NULL, 1);
+						break;
+					}
+				}
+				temp=temp->next;
+			}
+		}
+		Unit=Unit->next;
+	}
+	
+	if (iUnitCountComp>=10&&iUnitCountComp>1.2*iUnitCountPlayer)
+	{
+		int sat=0,uat=0;
+		Unit=temp=first;
+		Struct=sfirst;
+		while (temp)
+		{
+			if (temp->GetPlayer()==1) 
+			{
+				sat=1;
+				break;
+			}
+			temp=temp->next;
+		}
+		while (Struct)
+		{
+			if (Struct->GetPlayer()==1) 
+			{
+				uat=1;
+				break;
+			}
+			Struct=Struct->next;
+		}
+		if (sat)
+			while (Unit)
+			{
+				if (Unit->GetPlayer()==2) 
+				{
+					Unit->SetTarget(temp, NULL, 1);
+					Unit->ComputerAttack(TRUE);
+				}
+				Unit=Unit->next;
+			}
+		else if (uat)
+			while (Unit)
+			{
+				if (Unit->GetPlayer()==2) 
+				{
+					Unit->SetTarget(NULL, Struct, 2);
+					Unit->ComputerAttack(TRUE);
+				}
+				Unit=Unit->next;
+			}
+	}
+	else
+	{
+		Unit=first;
+		while (Unit)
+		{
+			if (Unit->GetPlayer()==2&&Unit->GetComputerAttack())
+			{
+				Unit->SetTarget(NULL, NULL, 0);
+				Unit->SetDestination(CStartX*80+rand()%250, CStartY*80+rand()%250);
+				Unit->ComputerAttack(FALSE);
+			}
+			Unit=Unit->next;
+		}
+	}
+
 	//draw selection frame
 	if (IsSelecting)
 	{
@@ -1110,14 +1272,14 @@ BOOL GameEngine::Update(int Reserved)
 		else pDDBackBuffer->Blt(&rButton, pDDMenuButtonOver, NULL, DDBLT_WAIT, NULL);
 
 	Struct=sfirst;
-	StructSelType=0;
+	iStructSelType=0;
 	while (Struct)
 	{
-		if (Struct->Selected()) StructSelType=Struct->GetType();
+		if (Struct->Selected()) iStructSelType=Struct->GetType();
 		Struct=Struct->next;
 	}
 
-	if (StructSelType==AIRPORT)
+	if (iStructSelType==AIRPORT)
 	{
 		//Add Plane Button
 		SetRect(&rButton,715,130,715+80,130+60);
@@ -1139,7 +1301,7 @@ BOOL GameEngine::Update(int Reserved)
 			{
 				Struct=sfirst;
 				while (!Struct->Selected()) Struct=Struct->next;
-				AddUnit(LWU_AIR, LWU_PLANE, Struct);
+				AddUnit(LWU_AIR, LWU_PLANE, Struct,1);
 				add=1;
 			}
 		}
@@ -1165,13 +1327,13 @@ BOOL GameEngine::Update(int Reserved)
 			{
 				Struct=sfirst;
 				while (!Struct->Selected()) Struct=Struct->next;
-				AddUnit(LWU_AIR, LWU_F15, Struct);
+				AddUnit(LWU_AIR, LWU_F15, Struct,1);
 				add=1;
 			}
 		}
 		else add=0;
 	}
-	else if (StructSelType==CCENTER)
+	else if (iStructSelType==CCENTER)
 	{
 		//Add Command Center Button
 		SetRect(&rButton,715,130,715+80,130+60);
@@ -1239,14 +1401,17 @@ BOOL GameEngine::Update(int Reserved)
 
 	}
 		
-	/*pDDBackBuffer->GetDC(&hdc);
-	SetTextAlign(hdc, TA_BOTTOM | TA_RIGHT);
+	int money_x=600, money_y=5;
+	SetRect(&DestRect, money_x, money_y, money_x+20, money_y+20);
+	pDDBackBuffer->Blt(&DestRect, pDDMoney, NULL, DDBLT_WAIT, NULL);
+	pDDBackBuffer->GetDC(&hdc);
+	//SetTextAlign(hdc, TA_BOTTOM | TA_RIGHT);
 	SetBkMode(hdc, TRANSPARENT);
-	SetTextColor(hdc, RGB(255,255,255));
-	char _itoa_t[10];
-	_itoa(SelectedCount, _itoa_t,10);
-	TextOut(hdc, 800, 600, _itoa_t, strlen(_itoa_t));
-	pDDBackBuffer->ReleaseDC(hdc);*/
+	SetTextColor(hdc, RGB(0,255,0));
+	char _ltoa_t[10];
+	_ltoa(lMoneyPlayer, _ltoa_t,10);
+	TextOut(hdc, money_x+25, money_y+2, _ltoa_t, strlen(_ltoa_t));
+	pDDBackBuffer->ReleaseDC(hdc);
 
 	SetRect(&rButton,710,540,710 + 80,540 + 45);
 	if (PtInRect(&rButton,pCursor)&&MenuButtonPressedOld&&(!bLMB))
@@ -1320,7 +1485,6 @@ BOOL GameEngine::Update(int Reserved)
 					change=1;
 				}
 			}
-			if (change) UnitCount--;
 		}
 	}
 	while (change);
@@ -1455,7 +1619,6 @@ BOOL GameEngine::UpdatePauseMenu(HWND hwnd)
 
 BOOL GameEngine::UpdateConfirmDialog(HWND hwnd)
 {
-	HDC hdc;
 	POINT pCursor;
 	int m_x, m_y;
 	static BOOL bOKP=FALSE, bOKPOld=FALSE, bCancelP=FALSE, bCancelPOld=FALSE;
@@ -1482,55 +1645,7 @@ BOOL GameEngine::UpdateConfirmDialog(HWND hwnd)
 		}
 		else pDDBackBuffer->Blt(&rOK, pDDConfirmOKHover, NULL, DDBLT_WAIT, NULL);
 	if (PtInRect(&rOK,pCursor)&&bOKPOld&&(!bLMB)) 
-		if (State==EXIT_CONFIRM)
-		{
-			if (first)
-			{
-				Unit=first;
-				while (Unit->next)
-				{
-					temp=Unit;
-					Unit=Unit->next;
-					delete temp;
-				}
-				delete Unit;
-				first=NULL;
-			}
-			if (mfirst)
-			{
-				Missile=mfirst;
-				while (Missile->next)
-				{
-					mtemp=Missile;
-					Missile=Missile->next;
-					delete mtemp;
-				}
-				delete Missile;
-				mfirst=NULL;
-			}
-			if (sfirst)
-			{
-				Struct=sfirst;
-				while (Struct->next)
-				{
-					stemp=Struct;
-					Struct=Struct->next;
-					delete stemp;
-				}
-				delete Struct;
-				sfirst=NULL;
-			}
-
-			State=MAIN_MENU;
-			DirectDrawUnInit(UNINIT_GAME);
-			DirectDrawInit(640,480,hwnd);
-			CreateMenuOffscreenSurfaces();
-			Loading();
-			LoadMenuFiles();
-			pDDCursor->GetDC(&hdc);
-			Cursor.Draw(hdc);
-			pDDCursor->ReleaseDC(hdc);
-		}
+		if (State==EXIT_CONFIRM) ReturnToMainMenu(hwnd);
 		else if (State==EXIT_GAME_CONFIRM) return FALSE;
 
 	if (PtInRect(&rCancel, pCursor))
@@ -1552,22 +1667,64 @@ BOOL GameEngine::UpdateConfirmDialog(HWND hwnd)
 	return TRUE;
 }
 
-void GameEngine::AddUnit(int iType, int iSubType, CStructure *Parent)
+int GameEngine::UpdateWinLoseDialog(HWND hwnd)
+{
+	POINT pCursor;
+	int m_x, m_y;
+	static BOOL bOKP=FALSE, bOKPOld=FALSE;
+	RECT DestRect, rOK;
+	
+	bCursorTarget=FALSE;
+	GetMouseCoords(m_x, m_y);
+	pCursor.x=m_x;
+	pCursor.y=m_y;
+	
+	if (!bLMB) bOKP=FALSE;
+
+	SetRect(&DestRect, 303, 246, 303+193, 246+107);
+	SetRect(&rOK, 303+55,246+69,303+55+85,246+69+33);
+	
+	pDDBackBuffer->Blt(NULL, pDDOffscreen, NULL, DDBLT_WAIT, NULL);
+	if (State==WIN_MESSAGE)
+		pDDBackBuffer->Blt(&DestRect, pDDWinMessage, NULL, DDBLT_WAIT, NULL);
+	else if (State=LOSE_MESSAGE)
+		pDDBackBuffer->Blt(&DestRect, pDDLoseMessage, NULL, DDBLT_WAIT, NULL);
+
+	if (PtInRect(&rOK, pCursor))
+		if (bLMB)
+		{
+			if (!bLMBOld&&!EnterDialog) bOKP=TRUE;
+			if (bOKP) pDDBackBuffer->Blt(&rOK, pDDErrorOKP, NULL, DDBLT_WAIT, NULL);
+		}
+		else pDDBackBuffer->Blt(&rOK, pDDErrorOKHover, NULL, DDBLT_WAIT, NULL);
+	if (PtInRect(&rOK,pCursor)&&bOKPOld&&(!bLMB)) ReturnToMainMenu(hwnd);
+
+	bOKPOld=bOKP;
+	bLMBOld=bLMB;
+	EnterDialog=FALSE;
+	ShowMouse();
+	pDDPrimary->Flip(NULL, DDFLIP_WAIT);
+	return TRUE;
+}
+
+void GameEngine::AddUnit(int iType, int iSubType, CStructure *Parent, int iPlayer)
 {
 	if (!first)
 	{
-		first=(CUnitPlane *) new CUnitPlane;
+		first=new CUnitPlane;
 		first->SetParent(Parent);
 		first->SetSubType(iSubType);
 		first->Select(FALSE);
 		first->next=NULL;
 		first->prev=NULL;
+		first->SetPlayer(iPlayer);
 	}
 	else
 	{
-		temp=(CUnitPlane *) new CUnitPlane;
+		temp=new CUnitPlane;
 		temp->SetParent(Parent);
 		temp->SetSubType(iSubType);
+		temp->SetPlayer(iPlayer);
 		temp->Select(FALSE);
 		Unit=first;
 		while (Unit->next) Unit=Unit->next;
@@ -1575,7 +1732,6 @@ void GameEngine::AddUnit(int iType, int iSubType, CStructure *Parent)
 		temp->prev=Unit;
 		temp->next=NULL;
 	}
-	UnitCount++;
 }
 
 void GameEngine::AddMissile(CUnit *Parent, CUnit *uDest, CStructure *sDest, int iDestType)
@@ -1708,13 +1864,67 @@ void GameEngine::ShowMouse()
 	}
 }
 
+void GameEngine::ReturnToMainMenu(HWND hwnd)
+{
+	HDC hdc;
+	
+	if (first)
+	{
+		Unit=first;
+		while (Unit->next)
+		{
+			temp=Unit;
+			Unit=Unit->next;
+			delete temp;
+		}
+		delete Unit;
+		first=NULL;
+	}
+	if (mfirst)
+	{
+		Missile=mfirst;
+		while (Missile->next)
+		{
+			mtemp=Missile;
+			Missile=Missile->next;
+			delete mtemp;
+		}
+		delete Missile;
+		mfirst=NULL;
+	}
+	if (sfirst)
+	{
+		Struct=sfirst;
+		while (Struct->next)
+		{
+			stemp=Struct;
+			Struct=Struct->next;
+			delete stemp;
+		}
+		delete Struct;
+		sfirst=NULL;
+	}
+
+	State=MAIN_MENU;
+	DirectDrawUnInit(UNINIT_GAME);
+	DirectDrawInit(640,480,hwnd);
+	CreateMenuOffscreenSurfaces();
+	Loading();
+	LoadMenuFiles();
+	pDDCursor->GetDC(&hdc);
+	Cursor.Draw(hdc);
+	pDDCursor->ReleaseDC(hdc);
+}
+
 GameEngine::Load(char *filename)
 {
 	CBmp bmp;
 	HDC hdc;
 	int i;
 	
-	UnitCount = CurentX = CurentY = StructSelType = iCreateBuilding = 0;
+	CStartX=15; CStartY=15;
+	lMoneyPlayer=lMoneyComp=500;
+	CurentX = CurentY = iStructSelType = iCreateBuilding = 0;
 	IsSelecting = WaitSelection = FALSE;
 	bLMBFirst = bLMBOld = bRMBOld = FALSE;
 	MenuButtonPressed = MenuButtonPressedOld=FALSE;
@@ -1726,11 +1936,20 @@ GameEngine::Load(char *filename)
 	Map.Load(filename);
 	LoadTerrainTiles();	
 	
-	Struct=(CStructCCenter *) new CStructCCenter;
+	Struct=new CStructCCenter;
 	Struct->SetPosition(160,160,&Map);
-	Struct->prev=NULL;
+	Struct->SetPlayer(1);
 	sfirst=Struct;
-	sfirst->next=NULL;
+	stemp=new CStructCCenter;
+	stemp->SetPosition(1200,1200,&Map);
+	stemp->SetPlayer(2);
+	Struct->next=stemp;
+	Struct=stemp;
+	stemp=new CStructAirport;
+	stemp->SetPosition(1440,1200,&Map);
+	stemp->SetPlayer(2);
+	Struct->next=stemp;
+	stemp->next=NULL;
 
 	pDDCursor->GetDC(&hdc);
 	Cursor.Draw(hdc);
@@ -1926,11 +2145,6 @@ GameEngine::Load(char *filename)
 	bmp.Draw(hdc);
 	pDDRedFrame->ReleaseDC(hdc);
 
-	bmp.Load("data\\units\\Missile.bmp");
-	pDDMissile->GetDC(&hdc);
-	bmp.Draw(hdc);
-	pDDMissile->ReleaseDC(hdc);
-
 	bmp.Load("data\\structures\\oilnb.bmp");
 	pDDOilBuild->GetDC(&hdc);
 	bmp.Draw(hdc);
@@ -1996,10 +2210,33 @@ GameEngine::Load(char *filename)
 	bmp.Draw(hdc);
 	pDDConfirmCancelHover->ReleaseDC(hdc);
 
+	bmp.Load("data\\menu\\win.bmp");
+	pDDWinMessage->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDWinMessage->ReleaseDC(hdc);
+
+	bmp.Load("data\\menu\\lose.bmp");
+	pDDLoseMessage->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDLoseMessage->ReleaseDC(hdc);
+
 	bmp.Load("data\\interface\\target.bmp");
 	pDDCursorTarget->GetDC(&hdc);
 	bmp.Draw(hdc);
 	pDDCursorTarget->ReleaseDC(hdc);
+
+	bmp.Load("data\\interface\\money.bmp");
+	pDDMoney->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDMoney->ReleaseDC(hdc);
+
+	pDDErrorOKP->GetDC(&hdc);
+	bmpEOK.Draw(hdc);
+	pDDErrorOKP->ReleaseDC(hdc);
+
+	pDDErrorOKHover->GetDC(&hdc);
+	bmpEOKHover.Draw(hdc);
+	pDDErrorOKHover->ReleaseDC(hdc);
 
 	for (i=0; i<=32; i++)
 	{
@@ -2044,6 +2281,18 @@ GameEngine::Load(char *filename)
 		if (FAILED(bmp.Draw(hdc))) return FALSE;
 		pDDExplosionBig[i-1]->ReleaseDC(hdc);
 	}
+
+	for (i=1; i<=8; i++)
+	{
+		char buffer[256];
+		sprintf(buffer, "data\\missile\\mis%d.bmp", i);
+		bmp.Load(buffer);
+
+		pDDMissile[i-1]->GetDC(&hdc);
+		bmp.Draw(hdc);
+		pDDMissile[i-1]->ReleaseDC(hdc);
+	}
+
 
 	return TRUE;
 }
@@ -2104,7 +2353,7 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 	switch (iMsg)
 	{
 	case WM_CREATE:
-		//PlayFile("data\\Video\\Mini-Intro.avi", hwnd);
+		//PlayFile("data\\Video\\Intro.avi", hwnd);
 		SendMessage(hwnd, WM_BEGINGAME, 0,0);
 		return 0;
 
@@ -2412,7 +2661,7 @@ BOOL CreateMenuOffscreenSurfaces()
 	Offscreen.dwWidth = 193;
 	Offscreen.dwHeight = 107;
 	pDD7->CreateSurface(&Offscreen, &pDDError, NULL);
-	
+
 	return TRUE;
 }
 
@@ -2465,6 +2714,13 @@ BOOL CreateGameOffscreenSurfaces()
 		pDDExplosionBig[i]->SetColorKey(DDCKEY_SRCBLT,&key);
 	}
 
+	Offscreen.dwWidth = 40;
+	Offscreen.dwHeight = 40;
+	for (i = 0; i < 8 ; i++)
+	{
+		pDD7->CreateSurface(&Offscreen, &pDDMissile[i], NULL);
+		pDDMissile[i]->SetColorKey(DDCKEY_SRCBLT, &key);
+	}
 
 	Offscreen.dwWidth = 800;
 	Offscreen.dwHeight = 600;
@@ -2539,11 +2795,6 @@ BOOL CreateGameOffscreenSurfaces()
 	pDDGreenFrame->SetColorKey(DDCKEY_SRCBLT, &key);
 	pDDRedFrame->SetColorKey(DDCKEY_SRCBLT, &key);
 
-	Offscreen.dwWidth = 40;
-	Offscreen.dwHeight = 40;
-	pDD7->CreateSurface(&Offscreen, &pDDMissile, NULL);
-	pDDMissile->SetColorKey(DDCKEY_SRCBLT, &key);
-
 	Offscreen.dwWidth = 282;
 	Offscreen.dwHeight = 361;
 	pDD7->CreateSurface(&Offscreen, &pDDPauseMenu, NULL);
@@ -2580,21 +2831,38 @@ BOOL CreateGameOffscreenSurfaces()
 	pDD7->CreateSurface(&Offscreen, &pDDConfirmOKHover, NULL);
 	pDD7->CreateSurface(&Offscreen, &pDDConfirmCancelP, NULL);
 	pDD7->CreateSurface(&Offscreen, &pDDConfirmCancelHover, NULL);	
+	pDD7->CreateSurface(&Offscreen, &pDDErrorOKP, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDErrorOKHover, NULL);
 
 	Offscreen.dwWidth = 15;
 	Offscreen.dwHeight = 17;
 	pDD7->CreateSurface(&Offscreen, &pDDOptionsBtn1, NULL);
 	pDD7->CreateSurface(&Offscreen, &pDDOptionsBtn2, NULL);
 
+	Offscreen.dwWidth = 193;
+	Offscreen.dwHeight = 107;
+	pDD7->CreateSurface(&Offscreen, &pDDWinMessage, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDLoseMessage, NULL);
+		
+	Offscreen.dwWidth = Offscreen.dwHeight = 20;
+	pDD7->CreateSurface(&Offscreen, &pDDMoney, NULL);;
+
 	return TRUE;
 }
 
 void DirectDrawUnInit(int iType)
 {
+	int i;
+	
 	if (iType==UNINIT_GAME)
 	{
+		RELEASE(pDDMoney);
+		RELEASE(pDDLoseMessage);
+		RELEASE(pDDWinMessage);
 		RELEASE(pDDOptionsBtn2);
 		RELEASE(pDDOptionsBtn1);
+		RELEASE(pDDErrorOKHover);
+		RELEASE(pDDErrorOKP);
 		RELEASE(pDDConfirmCancelHover);
 		RELEASE(pDDConfirmCancelP);
 		RELEASE(pDDConfirmOKHover);
@@ -2608,7 +2876,6 @@ void DirectDrawUnInit(int iType)
 		RELEASE(pDDPauseEMenu);
 		RELEASE(pDDPauseOptions);
 		RELEASE(pDDPauseMenu);
-		RELEASE(pDDMissile);
 		RELEASE(pDDRedFrame);
 		RELEASE(pDDGreenFrame);
 		RELEASE(pDDAirBuild);
@@ -2647,7 +2914,9 @@ void DirectDrawUnInit(int iType)
 		RELEASE(pDDSprite185x160);
 		RELEASE(pDDCCenterMask);
 		RELEASE(pDDCCenterSelected);
-		for (int i=14; i>=0; i--)
+		for (i=7; i>=0; i--)
+			RELEASE(pDDMissile[i]);
+		for (i=14; i>=0; i--)
 			RELEASE(pDDExplosionBig[i]);
 		for (i=80; i>=0; i--)
 			RELEASE(pDDSprite120x90[i]);
@@ -2903,14 +3172,14 @@ void LoadMenuFiles()
 	bmp.Draw(hdc);
 	pDDError->ReleaseDC(hdc);
 
-	bmp.Load("data\\Menu\\eokp.bmp");
+	bmpEOK.Load("data\\Menu\\eokp.bmp");
 	pDDErrorOKP->GetDC(&hdc);
-	bmp.Draw(hdc);
+	bmpEOK.Draw(hdc);
 	pDDErrorOKP->ReleaseDC(hdc);
 
-	bmp.Load("data\\Menu\\eokhover.bmp");
+	bmpEOKHover.Load("data\\Menu\\eokhover.bmp");
 	pDDErrorOKHover->GetDC(&hdc);
-	bmp.Draw(hdc);
+	bmpEOKHover.Draw(hdc);
 	pDDErrorOKHover->ReleaseDC(hdc);
 }
 
@@ -2936,7 +3205,6 @@ BOOL StartGame(HWND hwnd)
 	
 	Loading();
 	LoadMenuFiles();
-	
 	CoCreateInstance(CLSID_FilterGraph, NULL, CLSCTX_INPROC_SERVER, IID_IGraphBuilder, (void **)&pigbMusic);
 	pigbMusic->QueryInterface(IID_IMediaControl, (void **)&pimcMusic);
 	pigbMusic->QueryInterface(IID_IMediaEventEx, (void **)&pimexMusic);
@@ -3474,6 +3742,10 @@ int UpdateGame(HWND hwnd)
 		case EXIT_GAME_CONFIRM:
 		case EXIT_CONFIRM:
 			if (!Engine.UpdateConfirmDialog(hwnd)) return 0;
+			break;
+		case WIN_MESSAGE:
+		case LOSE_MESSAGE:
+			if (!Engine.UpdateWinLoseDialog(hwnd)) return 0;
 			break;
 	}
 	return 1;
