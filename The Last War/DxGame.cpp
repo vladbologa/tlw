@@ -72,9 +72,9 @@ IVideoWindow  *pivw  = NULL;
 LPDIRECTDRAW7 pDD7 = NULL;
 LPDIRECTDRAWSURFACE7 pDDPrimary = NULL;
 LPDIRECTDRAWSURFACE7 pDDBackBuffer = NULL;
-LPDIRECTINPUT8 pDI = NULL;
-LPDIRECTINPUTDEVICE8 pDIKeyboard = NULL;
-LPDIRECTINPUTDEVICE8 pDIMouse = NULL;
+LPDIRECTINPUT pDI = NULL;
+LPDIRECTINPUTDEVICE pDIKeyboard = NULL;
+LPDIRECTINPUTDEVICE pDIMouse = NULL;
 LPDIRECTDRAWCLIPPER pDDClipper = NULL;
 
 LPDIRECTDRAWSURFACE7 pDDCursor = NULL;
@@ -135,7 +135,7 @@ class GameEngine
 	int CurentX, CurentY;
 	int mouse_x, mouse_y, fmouse_x, fmouse_y;
 	BOOL LeftButtonPressed, RightButtonPressed;
-	BOOL IsSelecting;
+	BOOL IsSelecting, WaitSelection;
 	CMap Map;
 	CBmp dBar, TerrainType[256];
 	BOOL fLMBPressed, oldLMBPressed;
@@ -207,9 +207,49 @@ BOOL GameEngine::Update(int Reserved)
 			plane=plane->next;
 		}
 		IsSelecting=FALSE;
+		WaitSelection=FALSE;
 	}
-	if (LeftButtonPressed&&oldLMBPressed&&(!fLMBPressed)) IsSelecting=TRUE;
-	
+	if (WaitSelection&&!LeftButtonPressed)
+	{
+		BOOL sel=FALSE;
+
+		plane=first;
+		while (plane->next) plane=plane->next;
+		while (plane)
+		{
+			POINT pt;
+			RECT r_plane;
+
+			pt.x=mouse_x;
+			pt.y=mouse_y;
+
+			r_plane.top=plane->GetY()-CurentY;
+			r_plane.left=plane->GetX()-CurentX;
+			r_plane.bottom=r_plane.top+90;
+			r_plane.right=r_plane.left+120;
+
+			if (PtInRect(&r_plane, pt))
+			{ 
+				if (!sel)
+				{
+					plane->Select(TRUE); 
+					sel=TRUE; 
+				}
+				else plane->Select(FALSE);
+			}
+			else plane->Select(FALSE);
+			plane=plane->prev;
+		}
+		WaitSelection=FALSE;
+	}
+
+	if (LeftButtonPressed&&oldLMBPressed&&(!fLMBPressed)&&!IsSelecting) WaitSelection=TRUE;
+	if (WaitSelection) if (mouse_x!=fmouse_x&&mouse_y!=fmouse_y) 
+	{
+		IsSelecting=TRUE;
+		WaitSelection=FALSE;
+	}
+
 	plane=first;
 	while (plane)
 	{
@@ -253,12 +293,14 @@ BOOL GameEngine::Update(int Reserved)
 	SetTextColor(hdc, RGB(255,255,255));
 	char _itoa_t[10];
 	_itoa(UnitCount, _itoa_t,10);
-	TextOut(hdc, 640, 480, _itoa_t, strlen(_itoa_t));
+	if (IsSelecting) TextOut(hdc, 640, 480, "Selection", 9);
+	else if (WaitSelection) TextOut(hdc, 640, 480, "Click", 5);
+	else TextOut(hdc, 640, 480, _itoa_t, strlen(_itoa_t));
 	hr = pDDBackBuffer->ReleaseDC(hdc);
 	//if (FAILED(hr)) PostQuitMessage(0);
 
 	ShowMouse();
-	if (!IsSelecting)
+	if (!IsSelecting&&!WaitSelection)
 	{
 		fmouse_x=mouse_x;
 		fmouse_y=mouse_y;
@@ -390,6 +432,7 @@ GameEngine::Load(int Level, int Reserved)
 {
 	CurentX = CurentY = 0;
 	IsSelecting=FALSE;
+	WaitSelection=FALSE;
 	Map.Load(Level);
 	LoadTerrainTiles();	
 	fLMBPressed=oldLMBPressed=FALSE;
@@ -488,7 +531,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	 HWND hwnd;
 
 	 CoInitialize(NULL);
-	 hr=DirectInput8Create(hInstance,DIRECTINPUT_VERSION,IID_IDirectInput8A, (void **) &pDI,NULL);
+	 hr=DirectInputCreate(hInstance,DIRECTINPUT_VERSION, &pDI,NULL);
 	 SetRect(&ScreenSize, 0, 0, 640, 480-125);
 
 	 wndclass.cbSize        = sizeof (wndclass);
@@ -1121,21 +1164,22 @@ void UpdateMainMenu()
 	InRect = FALSE;
 	if ((CurXAnte != CurX) || (CurYAnte != CurY))
 	{
-		if (PtInRect(&rBeginGame, pCursor)) Selected = 0;
-		if (PtInRect(&rOptions, pCursor)) Selected = 1;
+		Selected = 0;
+		if (PtInRect(&rBeginGame, pCursor)) Selected = 1;
+		if (PtInRect(&rOptions, pCursor)) Selected = 2;
 	}
 	
 	if (PtInRect(&rBeginGame, pCursor)) InRect = TRUE;
 	if (PtInRect(&rOptions, pCursor)) InRect = TRUE;
 
-	if ((Selected == 0)&& (InRect))
+	if ((Selected == 1)&& (InRect))
 	{
 		c++;
 		if (c % 2 == 0)
 			BGActual = BGActual->next;
 	}
 
-	if ((Selected == 1)&& (InRect))
+	if ((Selected == 2)&& (InRect))
 		OptActual = OptActual->next;
 
 	pDDMenuBegin->GetDC(&hdc);
@@ -1160,7 +1204,7 @@ void UpdateMainMenu()
 	if (FAILED(hr)) PostQuitMessage(0);
 	
 	if (dims.rgbButtons[0] & 0x80) MEnter = TRUE;
-	if ((Selected == 0) && MEnter) State = GAME_ACTIVE;
+	if ((Selected == 1) && MEnter) State = GAME_ACTIVE;
 }
 
 void CALLBACK Actualizare(HWND hwnd, UINT iMsg, UINT iTimerID, DWORD dwTime)
