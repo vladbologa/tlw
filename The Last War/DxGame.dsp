@@ -53,7 +53,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /machine:I386
-# ADD LINK32 ole32.lib kernel32.lib shell32.lib user32.lib gdi32.lib quartz.lib comdlg32.lib dxguid.lib dinput.lib ddraw.lib dsound.lib winmm.lib libcmt.lib strmbase.lib dinput8.lib /nologo /subsystem:windows /pdb:none /machine:I386 /nodefaultlib /OPT:NOREF
+# ADD LINK32 ole32.lib kernel32.lib shell32.lib user32.lib gdi32.lib quartz.lib comdlg32.lib dxguid.lib dinput.lib ddraw.lib dsound.lib winmm.lib libcmt.lib strmbase.lib  /nologo /subsystem:windows /pdb:none /machine:I386 /nodefaultlib /OPT:NOREF
 
 !ELSEIF  "$(CFG)" == "DxGame - Win32 Debug"
 
@@ -79,7 +79,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /debug /machine:I386 /pdbtype:sept
-# ADD LINK32 winspool.lib advapi32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib ole32.lib kernel32.lib shell32.lib user32.lib gdi32.lib quartz.lib comdlg32.lib dxguid.lib dinput.lib ddraw.lib dsound.lib winmm.lib libcmt.lib strmbase.lib dinput8.lib /nologo /subsystem:windows /debug /machine:I386 /pdbtype:sept
+# ADD LINK32 winspool.lib advapi32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib ole32.lib kernel32.lib shell32.lib user32.lib gdi32.lib quartz.lib comdlg32.lib dxguid.lib dinput.lib ddraw.lib dsound.lib winmm.lib libcmt.lib strmbase.lib /nologo /subsystem:windows /debug /machine:I386 /pdbtype:sept
 
 !ENDIF 
 
