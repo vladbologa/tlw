@@ -21,7 +21,7 @@
 #include <ddraw.h>
 #include <dinput.h>
 
-#define  VERSION "v0.6.2b"
+#define  VERSION "v0.7.1b"
  
 #define KEYDOWN(name,key) (name[key] & 0x80)
 #define WM_GRAPHNOTIFY  WM_USER+13
@@ -108,14 +108,14 @@ LPDIRECTINPUTDEVICE pDIKeyboard = NULL;
 LPDIRECTINPUTDEVICE pDIMouse = NULL;
 LPDIRECTDRAWCLIPPER pDDClipper = NULL;
 
-LPDIRECTDRAWSURFACE7 pDDCursor = NULL;
+LPDIRECTDRAWSURFACE7 pDDCursor, pDDCursorTarget;
 LPDIRECTDRAWSURFACE7 pDDOffscreen = NULL;
 LPDIRECTDRAWSURFACE7 pDDPanel = NULL;
 LPDIRECTDRAWSURFACE7 pDDTile[MAX_TILES];
 LPDIRECTDRAWSURFACE7 pDDMenuBegin, pDDMenuOpt;
 LPDIRECTDRAWSURFACE7 pDDMenuSM, pDDSMNewGame, pDDSMCustom;
 LPDIRECTDRAWSURFACE7 pDDMenuBeginTXT, pDDMenuBeginTXTSel, pDDMenuOptTXTSel, pDDMenuExitTXTSel;
-LPDIRECTDRAWSURFACE7 pDDSprite120x90[66];
+LPDIRECTDRAWSURFACE7 pDDSprite120x90[81];
 LPDIRECTDRAWSURFACE7 pDDSpriteOilPlant, pDDSprite185x160, pDDSprite170x160;
 LPDIRECTDRAWSURFACE7 pDDCCenterBuild, pDDAirBuild, pDDOilBuild, pDDPyrBuild;
 LPDIRECTDRAWSURFACE7 pDDAirport, pDDAirportSelected, pDDAirportMask;
@@ -135,6 +135,7 @@ LPDIRECTDRAWSURFACE7 pDDOptions, pDDOptionsOKP, pDDOptionsOKHover, pDDOptionsBtn
 LPDIRECTDRAWSURFACE7 pDDCustom, pDDCustomOKP, pDDCustomOKHover;
 LPDIRECTDRAWSURFACE7 pDDError, pDDErrorOKP, pDDErrorOKHover;
 LPDIRECTDRAWSURFACE7 pDDConfirm, pDDConfirmOKP, pDDConfirmOKHover, pDDConfirmCancelP, pDDConfirmCancelHover;
+LPDIRECTDRAWSURFACE7 pDDExplosionBig[15];
 LPDIRECTDRAWSURFACE7 pDDMissile;
 
 //Function prototypes
@@ -193,7 +194,7 @@ class GameEngine
 	BOOL MouseOnPanel();
 	int CurentX, CurentY;
 	int mouse_x, mouse_y, fmouse_x, fmouse_y;
-	BOOL IsSelecting, WaitSelection;
+	BOOL IsSelecting, WaitSelection, bCursorTarget;
 	BOOL bLMB, bRMB, bLMBFirst, bLMBOld, bRMBOld;
 	BOOL MenuButtonPressed, MenuButtonPressedOld, PlaneButtonPressed, PlaneButtonPressedOld, bF15BtnP, bF15BtnPOld;
 	BOOL bCCenterBP, bCCenterBPOld, bOPBP, bOPBPOld, bAirBP, bAirBPOld, bPyBP, bPyBPOld;
@@ -237,6 +238,7 @@ BOOL GameEngine::Update(int Reserved)
 		bCCenterBP=bOPBP=bAirBP=bPyBP=FALSE;
 	}
 	bMouseOnPanel=MouseOnPanel();
+	bCursorTarget=FALSE;
 	
 //***********Scrolling***********
 	if (!IsSelecting)
@@ -332,19 +334,13 @@ BOOL GameEngine::Update(int Reserved)
 			if (IntersectRect(&temp, &rc, &r_Structure)&&(!iNrSel))
 			{
 				Struct->Select(TRUE);
-				StructSelType=Struct->GetType();
 				iNrSel++;
 				iStructSel++;
 			}
-			else
-			{
-				Struct->Select(FALSE);
-				if (!iStructSel) StructSelType=0;
-			}
+			else Struct->Select(FALSE);
 			Struct=Struct->next;
 		}
 		
-		SelectedCount=iNrSel;
 		IsSelecting=FALSE;
 		WaitSelection=FALSE;
 	}
@@ -485,19 +481,13 @@ BOOL GameEngine::Update(int Reserved)
 			if (CursorOnStructure&&(!iNrSel))
 			{
 				Struct->Select(TRUE);
-				StructSelType=Struct->GetType();
 				iNrSel++;
 				iStructSel++;
 			}
-			else
-			{
-				Struct->Select(FALSE);
-				if (!iStructSel) StructSelType=0;
-			}
+			else Struct->Select(FALSE);
 			Struct=Struct->next;
 		}
 
-		SelectedCount=iNrSel;
 		WaitSelection=FALSE;
 	}
 
@@ -512,35 +502,184 @@ BOOL GameEngine::Update(int Reserved)
 
 	RECT DestRect;
 
+	//Draw structures
 	Struct=sfirst;
 	while (Struct)
 	{
+		Struct->Update();
+		int iEF=Struct->GetExplodeFrame();
 		switch(Struct->GetType())
 		{
 		case 1:
 			SetRect(&DestRect, Struct->GetX()-CurentX, Struct->GetY()-CurentY, Struct->GetX()+185-CurentX, Struct->GetY()+160-CurentY);
-			if (Struct->Selected()) pDDBackBuffer->Blt(&DestRect, pDDCCenterSelected, NULL, DDBLT_WAIT, NULL);
-			else pDDBackBuffer->Blt(&DestRect, pDDSprite185x160, NULL, DDBLT_WAIT, NULL);
 			break;
 		case 2:
 			SetRect(&DestRect, Struct->GetX()-CurentX, Struct->GetY()-CurentY, Struct->GetX()+295-CurentX, Struct->GetY()+212-CurentY);
-			if (Struct->Selected()) pDDBackBuffer->Blt(&DestRect, pDDOilPlantSelected, NULL, DDBLT_WAIT, NULL);
-			else pDDBackBuffer->Blt(&DestRect, pDDSpriteOilPlant, NULL, DDBLT_WAIT, NULL);
 			break;
 		case 3:
 			SetRect(&DestRect, Struct->GetX()-CurentX, Struct->GetY()-CurentY, Struct->GetX()+180-CurentX, Struct->GetY()+160-CurentY);
-			if (Struct->Selected()) pDDBackBuffer->Blt(&DestRect, pDDPyramidSelected, NULL, DDBLT_WAIT, NULL);
-			else pDDBackBuffer->Blt(&DestRect, pDDPyramid, NULL, DDBLT_WAIT, NULL);
 			break;
 		case 4:
 			SetRect(&DestRect, Struct->GetX()-CurentX, Struct->GetY()-CurentY, Struct->GetX()+290-CurentX, Struct->GetY()+265-CurentY);
-			if (Struct->Selected()) pDDBackBuffer->Blt(&DestRect, pDDAirportSelected, NULL, DDBLT_WAIT, NULL);
-			else pDDBackBuffer->Blt(&DestRect, pDDAirport, NULL, DDBLT_WAIT, NULL);
 			break;
+		}
+		if (iEF<=15)
+		{
+			switch(Struct->GetType())
+			{
+			case 1:
+				if (Struct->Selected()) pDDBackBuffer->Blt(&DestRect, pDDCCenterSelected, NULL, DDBLT_WAIT, NULL);
+				else pDDBackBuffer->Blt(&DestRect, pDDSprite185x160, NULL, DDBLT_WAIT, NULL);
+				break;
+			case 2:
+				if (Struct->Selected()) pDDBackBuffer->Blt(&DestRect, pDDOilPlantSelected, NULL, DDBLT_WAIT, NULL);
+				else pDDBackBuffer->Blt(&DestRect, pDDSpriteOilPlant, NULL, DDBLT_WAIT, NULL);
+				break;
+			case 3:
+				if (Struct->Selected()) pDDBackBuffer->Blt(&DestRect, pDDPyramidSelected, NULL, DDBLT_WAIT, NULL);
+				else pDDBackBuffer->Blt(&DestRect, pDDPyramid, NULL, DDBLT_WAIT, NULL);
+				break;
+			case 4:
+				if (Struct->Selected()) pDDBackBuffer->Blt(&DestRect, pDDAirportSelected, NULL, DDBLT_WAIT, NULL);
+				else pDDBackBuffer->Blt(&DestRect, pDDAirport, NULL, DDBLT_WAIT, NULL);
+				break;
+			}
+		}
+		if (iEF)
+		{
+			if (iEF<=15)
+				pDDBackBuffer->Blt(&DestRect, pDDExplosionBig[iEF-1], NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
+			else pDDBackBuffer->Blt(&DestRect, pDDExplosionBig[29-iEF], NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
 		}
 		Struct=Struct->next;
 	}
 
+	//Select the "target" cursor
+	if (!bMouseOnPanel)
+	{
+		int CursorOnUnit=0, CursorOnStructure=0;
+		POINT pt;
+		RECT r_Unit, r_Structure;
+		
+		pt.x=mouse_x;
+		pt.y=mouse_y;
+		
+		Unit=first;
+		while (Unit&&!CursorOnUnit)
+		{
+			CursorOnUnit = 0;
+			r_Unit.top=Unit->GetY()-CurentY;
+			r_Unit.left=Unit->GetX()-CurentX;
+			r_Unit.bottom=r_Unit.top+90;
+			r_Unit.right=r_Unit.left+120;
+
+			if (PtInRect(&r_Unit, pt))
+			{
+				int relx, rely, poz;
+				DDSURFACEDESC2 sDesc;
+				sDesc.dwSize=sizeof(sDesc);
+				int frame=Unit->GetCurrentFrame();
+				
+				relx=mouse_x-r_Unit.left;
+				rely=mouse_y-r_Unit.top;
+				if (Unit->GetSubType()==2) frame+=33;
+				if (pDDSprite120x90[frame]->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+				{
+					PBYTE mem=(PBYTE) sDesc.lpSurface;
+					poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+					if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnUnit=1;
+					pDDSprite120x90[frame]->Unlock(NULL);
+				}
+			}
+			
+			Unit=Unit->next;
+		}
+
+		Struct=sfirst;
+		while (Struct&&!CursorOnStructure)
+		{
+			CursorOnStructure = 0;
+			r_Structure.top=Struct->GetY()-CurentY;
+			r_Structure.left=Struct->GetX()-CurentX;
+			switch (Struct->GetType())
+			{
+			case 1:
+				r_Structure.bottom=r_Structure.top + 160;
+				r_Structure.right=r_Structure.left + 185;
+				break;
+			case 2:
+				r_Structure.bottom=r_Structure.top + 212;
+				r_Structure.right=r_Structure.left + 295;
+				break;
+			case 3:
+				r_Structure.bottom=r_Structure.top + 160;
+				r_Structure.right=r_Structure.left + 180;
+				break;
+			case 4:
+				r_Structure.bottom=r_Structure.top + 265;
+				r_Structure.right=r_Structure.left + 290;
+				break;
+			}
+
+			if (PtInRect(&r_Structure, pt))
+			{
+				int relx, rely, poz;
+				DDSURFACEDESC2 sDesc;
+				sDesc.dwSize=sizeof(sDesc);	
+					
+				relx=mouse_x-r_Structure.left;
+				rely=mouse_y-r_Structure.top;
+				switch (Struct->GetType())
+				{
+				case 1:
+					if (pDDCCenterMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+					{
+						PBYTE mem=(PBYTE) sDesc.lpSurface;
+						poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+						if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
+							pDDCCenterMask->Unlock(NULL);
+					}
+					break;
+				case 2:
+					if (pDDOilPlantMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+					{
+						PBYTE mem=(PBYTE) sDesc.lpSurface;
+						poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+						if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
+							pDDOilPlantMask->Unlock(NULL);
+					}
+					break;
+				case 3:
+					if (pDDPyramidMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+					{
+						PBYTE mem=(PBYTE) sDesc.lpSurface;
+						poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+						if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
+							pDDPyramidMask->Unlock(NULL);
+					}
+					break;
+				case 4:
+					if (pDDAirportMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+					{
+						PBYTE mem=(PBYTE) sDesc.lpSurface;
+						poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+						if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
+							pDDAirportMask->Unlock(NULL);
+					}
+					break;
+				}
+			}
+			Struct=Struct->next;
+		}
+		if (CursorOnStructure||CursorOnUnit) bCursorTarget=TRUE;
+	}
+
+	//Attack code
 	if (!bRMB&&bRMBOld&&!bMouseOnPanel) 
 	{
 		BOOL bUSel = FALSE;
@@ -714,7 +853,7 @@ BOOL GameEngine::Update(int Reserved)
 		temp=first;
 		while (temp)
 		{
-			if (temp->Selected()) AddMissile(temp, Unit, NULL, UNIT);
+			if (temp->Selected()) temp->SetTarget(Unit, NULL, 1);
 			temp=temp->next;
 		}
 	}
@@ -729,11 +868,12 @@ BOOL GameEngine::Update(int Reserved)
 		temp=first;
 		while (temp)
 		{
-			if (temp->Selected()) AddMissile(temp, NULL, Struct, STRUCT);
+			if (temp->Selected()) temp->SetTarget(NULL, Struct, 2);
 			temp=temp->next;
 		}
 	}
 
+	//Draw missiles
 	Missile=mfirst;
 	while (Missile)
 	{
@@ -743,6 +883,7 @@ BOOL GameEngine::Update(int Reserved)
 		Missile=Missile->next;
 	}
 
+	//Building creation code
 	if (iCreateBuilding)
 	{
 		int it,jt,bCB=1;
@@ -810,6 +951,7 @@ BOOL GameEngine::Update(int Reserved)
 		}
 	}
 
+	//Unit moving && drawing
 	int vx,vy,c=0,row=1,p;
 	int tx = 0,ty = 0;
 
@@ -821,6 +963,14 @@ BOOL GameEngine::Update(int Reserved)
 			tx+=(CurentX+m_x-60-Unit->GetX());
 			ty+=(CurentY+m_y-45-Unit->GetY());
 		}
+		Unit=Unit->next;
+	}
+
+	SelectedCount=0;
+	Unit=first;
+	while (Unit)
+	{
+		if (Unit->Selected()) SelectedCount++;
 		Unit=Unit->next;
 	}
 
@@ -892,22 +1042,43 @@ BOOL GameEngine::Update(int Reserved)
 				if (-ty>tx) Unit->SetDestination(CurentX+m_x-60+vy, CurentY+m_y-45-vx);
 				else Unit->SetDestination(CurentX+m_x-60+vx, CurentY+m_y-45+vy);
 			}
+			Unit->SetTarget(NULL, NULL, 0);
 		}
 		Unit->Update();
-		SetRect(&DestRect, Unit->GetX()-CurentX, Unit->GetY()-CurentY, Unit->GetX()+120-CurentX, Unit->GetY()+90-CurentY);
-		if (Unit->Selected())
-			pDDBackBuffer->Blt(&DestRect, pDDUnitSelection, NULL, DDBLT_WAIT|DDBLT_KEYSRC, NULL);
-		switch (Unit->GetSubType())
+		if (Unit->InRange()&&Unit->CanShoot()) 
 		{
-		case 1:
-			pDDBackBuffer->Blt(&DestRect, pDDSprite120x90[Unit->GetCurrentFrame()], NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
-			break;
-		case 2:
-			pDDBackBuffer->Blt(&DestRect, pDDSprite120x90[Unit->GetCurrentFrame()+33], NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
+			if (Unit->GetTargetType()==1)
+				AddMissile(Unit,Unit->GetUnitTarget(), NULL, UNIT);
+			else if (Unit->GetTargetType()==2)
+				AddMissile(Unit,NULL, Unit->GetStructTarget(), STRUCT);
+			Unit->Shoot();
+		}
+
+		int iEF=Unit->GetExplodeFrame();
+		SetRect(&DestRect, Unit->GetX()-CurentX, Unit->GetY()-CurentY, Unit->GetX()+120-CurentX, Unit->GetY()+90-CurentY);
+		if (iEF<=15)
+		{
+			if (Unit->Selected())
+				pDDBackBuffer->Blt(&DestRect, pDDUnitSelection, NULL, DDBLT_WAIT|DDBLT_KEYSRC, NULL);
+			switch (Unit->GetSubType())
+			{
+			case 1:
+				pDDBackBuffer->Blt(&DestRect, pDDSprite120x90[Unit->GetCurrentFrame()], NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
+				break;
+			case 2:
+				pDDBackBuffer->Blt(&DestRect, pDDSprite120x90[Unit->GetCurrentFrame()+33], NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
+			}
+		}
+		if (iEF)
+		{
+			if (iEF<=15)
+				pDDBackBuffer->Blt(&DestRect, pDDSprite120x90[iEF+65], NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
+			else pDDBackBuffer->Blt(&DestRect, pDDSprite120x90[95-iEF], NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
 		}
 		Unit=Unit->next;
 	}	
 
+	//draw selection frame
 	if (IsSelecting)
 	{
 		int tmp_fmouse_x=fmouse_x, tmp_mouse_x=mouse_x;
@@ -925,6 +1096,7 @@ BOOL GameEngine::Update(int Reserved)
 	hr = pDDBackBuffer->Blt(&DestRect, pDDPanel, NULL, DDBLT_WAIT|DDBLT_KEYSRC, NULL);
 	if (hr!=DD_OK) return FALSE;
 
+	//Update the panel buttons
 	pCursor.x=mouse_x;
 	pCursor.y=mouse_y;
 	SetRect(&rButton,710,540,710 + 80,540 + 45);
@@ -936,6 +1108,14 @@ BOOL GameEngine::Update(int Reserved)
 				pDDBackBuffer->Blt(&rButton, pDDMenuButtonPressed, NULL, DDBLT_WAIT, NULL);
 		}
 		else pDDBackBuffer->Blt(&rButton, pDDMenuButtonOver, NULL, DDBLT_WAIT, NULL);
+
+	Struct=sfirst;
+	StructSelType=0;
+	while (Struct)
+	{
+		if (Struct->Selected()) StructSelType=Struct->GetType();
+		Struct=Struct->next;
+	}
 
 	if (StructSelType==AIRPORT)
 	{
@@ -1095,58 +1275,87 @@ BOOL GameEngine::Update(int Reserved)
 
 	pDDPrimary->Flip(NULL, DDFLIP_WAIT);
 	
+	//delete destroyed plane objects
 	int change=0;
-	if (KEYDOWN(buffer, DIK_DELETE))
+	do
 	{
-		do
+		Unit=first;
+		change=0;
+		if (first)
 		{
-			Unit=first;
-			change=0;
-			if (first)
+			if (first->Destroyed()&&(!first->next))
 			{
-				if (first->Selected()&&(!first->next))
+				delete Unit;
+				first=NULL;
+				change=1;
+			}
+			else if (first->Destroyed())
+			{
+				Unit=Unit->next;
+				Unit->prev=NULL;
+				delete first;
+				first=Unit;
+				change=1;
+			}
+			else
+			{
+				while ((Unit->next)&&(!Unit->Destroyed())) Unit=Unit->next;
+				if (Unit->next)
 				{
-					delete Unit;
-					first=NULL;
-					change=1;
-				}
-				else if (first->Selected())
-				{
+					temp=Unit;
+					Unit=Unit->prev;
+					Unit->next=temp->next;
+					delete temp;
+					temp=Unit;
 					Unit=Unit->next;
-					Unit->prev=NULL;
-					delete first;
-					first=Unit;
+					Unit->prev=temp;
 					change=1;
 				}
-				else
+				else if (Unit->Destroyed())
 				{
-					while ((Unit->next)&&(!Unit->Selected())) Unit=Unit->next;
-					if (Unit->next)
-					{
-						temp=Unit;
-						Unit=Unit->prev;
-						Unit->next=temp->next;
-						delete temp;
-						temp=Unit;
-						Unit=Unit->next;
-						Unit->prev=temp;
-						change=1;
-					}
-					else if (Unit->Selected())
-					{
-						temp=Unit->prev;
-						temp->next=NULL;
-						delete Unit;
-						Unit=NULL;
-						change=1;
-					}
+					temp=Unit->prev;
+					temp->next=NULL;
+					delete Unit;
+					Unit=NULL;
+					change=1;
 				}
-				if (change) UnitCount--;
+			}
+			if (change) UnitCount--;
+		}
+	}
+	while (change);
+
+	//delete destroyed structure objects
+	do
+	{
+		Struct=sfirst;
+		change=0;
+		if (sfirst)
+		{
+			if (sfirst->Destroyed())
+			{
+				stemp=sfirst->next;
+				delete sfirst;
+				sfirst=stemp;
+				change=1;
+			}
+			else while (Struct->next)
+			{
+				if (Struct->next->Destroyed())
+				{
+					stemp=Struct->next->next;
+					delete Struct->next;
+					Struct->next=stemp;
+					change=1;
+					break;
+				}
+				Struct=Struct->next;
 			}
 		}
-		while (change);
 	}
-
+	while (change);
+	
+	//delete destroyed missile objects
 	do
 	{
 		Missile=mfirst;
@@ -1487,9 +1696,16 @@ void GameEngine::ShowMouse()
 {
 	RECT DestRect;
 	
-	SetRect(&DestRect, mouse_x, mouse_y, mouse_x + 32, mouse_y + 32);
-	HRESULT hr = pDDBackBuffer->Blt(&DestRect, pDDCursor, NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
-	if (FAILED(hr)) PostQuitMessage(0);
+	if (bCursorTarget)
+	{
+		SetRect(&DestRect, mouse_x-16, mouse_y-16, mouse_x + 16, mouse_y + 16);
+		pDDBackBuffer->Blt(&DestRect, pDDCursorTarget, NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
+	}
+	else
+	{
+		SetRect(&DestRect, mouse_x, mouse_y, mouse_x + 32, mouse_y + 32);
+		pDDBackBuffer->Blt(&DestRect, pDDCursor, NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
+	}
 }
 
 GameEngine::Load(char *filename)
@@ -1515,6 +1731,10 @@ GameEngine::Load(char *filename)
 	Struct->prev=NULL;
 	sfirst=Struct;
 	sfirst->next=NULL;
+
+	pDDCursor->GetDC(&hdc);
+	Cursor.Draw(hdc);
+	pDDCursor->ReleaseDC(hdc);
 
 	pDDOptions->GetDC(&hdc);
 	Options.Draw(hdc);
@@ -1776,6 +1996,11 @@ GameEngine::Load(char *filename)
 	bmp.Draw(hdc);
 	pDDConfirmCancelHover->ReleaseDC(hdc);
 
+	bmp.Load("data\\interface\\target.bmp");
+	pDDCursorTarget->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDCursorTarget->ReleaseDC(hdc);
+
 	for (i=0; i<=32; i++)
 	{
 		char buffer[256];
@@ -1796,6 +2021,28 @@ GameEngine::Load(char *filename)
 		pDDSprite120x90[i]->GetDC(&hdc);
 		if (FAILED(bmp.Draw(hdc))) return FALSE;
 		pDDSprite120x90[i]->ReleaseDC(hdc);
+	}
+
+	for (i=66; i<=80; i++)
+	{
+		char buffer[256];
+		sprintf(buffer, "data\\FX\\explosion\\explosion%d.bmp", i-65);
+		bmp.Load(buffer);
+
+		pDDSprite120x90[i]->GetDC(&hdc);
+		if (FAILED(bmp.Draw(hdc))) return FALSE;
+		pDDSprite120x90[i]->ReleaseDC(hdc);
+	}
+
+	for (i=1; i<=15; i++)
+	{
+		char buffer[256];
+		sprintf(buffer, "data\\FX\\explosion_big\\exp_big%d.bmp", i);
+		bmp.Load(buffer);
+
+		pDDExplosionBig[i-1]->GetDC(&hdc);
+		if (FAILED(bmp.Draw(hdc))) return FALSE;
+		pDDExplosionBig[i-1]->ReleaseDC(hdc);
 	}
 
 	return TRUE;
@@ -2094,10 +2341,6 @@ BOOL CreateMenuOffscreenSurfaces()
 	pDD7->CreateSurface(&Offscreen,&pDDOffscreen,NULL);
 	pDDOffscreen->SetColorKey(DDCKEY_SRCBLT,&key);
 
-	ZeroMemory(&Offscreen, sizeof(DDSURFACEDESC2));
-	Offscreen.dwSize=sizeof(DDSURFACEDESC2);
-	Offscreen.dwFlags = DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH;
-	Offscreen.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
 	Offscreen.dwWidth = 32;
 	Offscreen.dwHeight = 32;
 	pDD7->CreateSurface(&Offscreen, &pDDCursor, NULL);
@@ -2193,7 +2436,6 @@ BOOL CreateGameOffscreenSurfaces()
 		pDDTile[i]->SetColorKey(DDCKEY_SRCBLT,&key);
 	}
 	
-	Offscreen.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
 	Offscreen.dwWidth = 120;
 	Offscreen.dwHeight = 90;
 	pDD7->CreateSurface(&Offscreen, &pDDUnitSelection, NULL);
@@ -2209,30 +2451,32 @@ BOOL CreateGameOffscreenSurfaces()
 
 	Offscreen.dwWidth = 120;
 	Offscreen.dwHeight = 90;
-	for (i = 0; i < 66; i++)
+	for (i = 0; i <= 80; i++)
 	{
 		pDD7->CreateSurface(&Offscreen,&pDDSprite120x90[i],NULL);
 		pDDSprite120x90[i]->SetColorKey(DDCKEY_SRCBLT,&key);
 	}
 
-	ZeroMemory(&Offscreen, sizeof(DDSURFACEDESC2));
-	Offscreen.dwSize=sizeof(DDSURFACEDESC2);
+	Offscreen.dwWidth = 300;
+	Offscreen.dwHeight = 300;
+	for (i = 0; i < 15 ; i++)
+	{
+		pDD7->CreateSurface(&Offscreen,&pDDExplosionBig[i],NULL);
+		pDDExplosionBig[i]->SetColorKey(DDCKEY_SRCBLT,&key);
+	}
 
-	Offscreen.dwFlags = DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH;
-	Offscreen.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
+
 	Offscreen.dwWidth = 800;
 	Offscreen.dwHeight = 600;
 	pDD7->CreateSurface(&Offscreen,&pDDOffscreen,NULL);
 	pDDOffscreen->SetColorKey(DDCKEY_SRCBLT,&key);
 
-	ZeroMemory(&Offscreen, sizeof(DDSURFACEDESC2));
-	Offscreen.dwSize=sizeof(DDSURFACEDESC2);
-	Offscreen.dwFlags = DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH;
-	Offscreen.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
 	Offscreen.dwWidth = 32;
 	Offscreen.dwHeight = 32;
 	pDD7->CreateSurface(&Offscreen, &pDDCursor, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDCursorTarget, NULL);
 	pDDCursor->SetColorKey(DDCKEY_SRCBLT, &key);
+	pDDCursorTarget->SetColorKey(DDCKEY_SRCBLT, &key);
 
 	Offscreen.dwWidth = 125;
 	Offscreen.dwHeight = 600;
@@ -2395,6 +2639,7 @@ void DirectDrawUnInit(int iType)
 		RELEASE(pDDMenuButtonPressed);
 		RELEASE(pDDSprite170x160);
 		RELEASE(pDDPanel);
+		RELEASE(pDDCursorTarget);
 		RELEASE(pDDCursor);
 		RELEASE(pDDOffscreen);
 		RELEASE(pDDUnitSelection);
@@ -2402,8 +2647,10 @@ void DirectDrawUnInit(int iType)
 		RELEASE(pDDSprite185x160);
 		RELEASE(pDDCCenterMask);
 		RELEASE(pDDCCenterSelected);
-		for (int i=65; i>=0; i--)
-				RELEASE(pDDSprite120x90[i]);
+		for (int i=14; i>=0; i--)
+			RELEASE(pDDExplosionBig[i]);
+		for (i=80; i>=0; i--)
+			RELEASE(pDDSprite120x90[i]);
 		for (i=MAX_TILES-1; i>=0; i--)
 			RELEASE(pDDTile[i]);
 	}
@@ -2813,7 +3060,6 @@ BOOL UpdateMainMenu()
 
 BOOL UpdateStartMenu(HWND hwnd)
 {
-	HDC hdc;
 	DIMOUSESTATE dims;
 	RECT DestRect;
 	static int EscapeOld = 0;
@@ -2866,9 +3112,6 @@ BOOL UpdateStartMenu(HWND hwnd)
 			CreateGameOffscreenSurfaces();
 			Loading();
 			Engine.Load("data\\Maps\\map.lwm");
-			pDDCursor->GetDC(&hdc);
-			Cursor.Draw(hdc);
-			pDDCursor->ReleaseDC(hdc);
 			break;
 		case 2:
 			State=NEW_CUSTOM_GAME;
@@ -3120,9 +3363,6 @@ BOOL UpdateStartCustom(HWND hwnd)
 			CreateGameOffscreenSurfaces();
 			Loading();
 			Engine.Load(filename);
-			pDDCursor->GetDC(&hdc);
-			Cursor.Draw(hdc);
-			pDDCursor->ReleaseDC(hdc);
 			fclose(in);
 		}
 		else State=NEW_GAME_ERROR;

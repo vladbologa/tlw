@@ -11,21 +11,26 @@
 
 CUnitPlane::CUnitPlane()
 {
-	modxold=modyold=odd=0;
+	modxold=modyold=odd=iES=0;
 	TurnDestFrame=0;
 }
 
 CUnitPlane::~CUnitPlane()
 {
-
 }
 
 int CUnitPlane::Update()
 {
 	int modx=0, mody=0;
 
+	CUnit::Update();
 	if (odd==0) odd=1; else odd=0;
-
+	if (iLife<=0)
+	{
+		iES++;
+		if (!(iES%4)) iES=0;
+		if (!iES) iExplodeFrame++;
+	}
 	if (DestX!=PosX)
 	{
 		if (DestX>PosX)

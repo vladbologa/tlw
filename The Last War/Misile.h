@@ -14,7 +14,6 @@
 
 class CMissile : public CUnit  
 {
-	CUnit *UnitTarget;
 	CStructure *StructTarget;
 	int iTargetType, iDestroy;
 

@@ -17,21 +17,26 @@ class CStructure
 protected:
 	int PosX, PosY;
 	int DestX, DestY;
-	int iLife;
+	int iLife, iPlayer, iExplodeFrame, iES;
 	BOOL bIsSelected, bIsAttacked;
+	CMap *map;
 
 public:
 	virtual int GetType()=0;
-	void Damage(int iDamage) { iLife-=iDamage; };
-	int GetX(){ return PosX; };
-	int GetY(){ return PosY; };
-	void SetDestination(int iDestX, int iDestY){ DestX = iDestX; DestY = iDestY; };
+	void Damage(int iDamage) { iLife-=iDamage; }
+	int GetExplodeFrame() { return iExplodeFrame; }
+	int GetX(){ return PosX; }
+	int GetY(){ return PosY; }
+	void SetPlayer(int Player) {iPlayer=Player;}
+	int GetPlayer() {return iPlayer;}
+	void SetDestination(int iDestX, int iDestY){ DestX = iDestX; DestY = iDestY; }
 	virtual void SetPosition(int iPosX, int iPosY, CMap *Map)=0;
 	void Select(BOOL b) {bIsSelected=b;}
 	void Attack(BOOL b) {bIsAttacked=b;}
 	BOOL Selected() {return bIsSelected;}
 	BOOL Attacked() {return bIsAttacked;}
-	virtual int Update()=0;
+	BOOL Destroyed() {return (iExplodeFrame>=29?TRUE:FALSE);}	
+	virtual int Update();
 	CStructure *next,*prev;
 	CStructure();
 	virtual ~CStructure();

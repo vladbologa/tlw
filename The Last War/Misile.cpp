@@ -34,6 +34,8 @@ int CMissile::Update()
 {
 	int difx, dify;
 	double r,x,y;
+	if (iTargetType==1) if (UnitTarget->GetExplodeFrame()) iDestroy=1;
+	if (iTargetType==2) if (StructTarget->GetExplodeFrame()) iDestroy=1;
 	if (iTargetType)
 	{
 		if (iTargetType==1)
@@ -95,8 +97,8 @@ int CMissile::Update()
 
 		if ((difx<=10)&&(dify<=10)) 
 		{
-			if (iTargetType==1) UnitTarget->Damage(100);
-			else if (iTargetType==2) StructTarget->Damage(100);
+			if (iTargetType==1) UnitTarget->Damage(20);
+			else if (iTargetType==2) StructTarget->Damage(20);
 			iDestroy=1;
 		}
 	}

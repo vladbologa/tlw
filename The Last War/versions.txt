@@ -1,7 +1,14 @@
 The Last War - Version History
 ------------------------------
 
-TLW 0.6.2 (under development)
+TLW 0.7.1 (under development)
+
+TLW 0.7 (may 2002)
+*vastly improved attacking
+
+TLW 0.6.2 (may 2002)
+*units & buildings can be destroyed
+*bugfixes
 
 TLW 0.6.1 (may 2002)
 *exit game confirm dialog

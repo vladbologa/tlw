@@ -13,7 +13,7 @@
 
 class CUnitPlane : public CUnit  
 {
-	int modxold, modyold, odd;
+	int modxold, modyold, odd, iES;
 
 public:
 	int Update();

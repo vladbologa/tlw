@@ -15,15 +15,27 @@
 class CUnit  
 {
 protected:
-	CStructure *Parent;
+	int iExplodeFrame, iShoot;
+	CUnit *UnitTarget;
+	CStructure *Parent, *StructTarget;
 	int PosX, PosY;
 	int DestX, DestY;
 	int CurrentFrame, TurnDestFrame;
 	int iSubType;
 	int iLife;
+	int iTargetType;
 	BOOL bIsTurning, bIsSelected, bIsAttacked;
 
 public:
+	BOOL Attacking();
+	BOOL InRange();
+	void Shoot(){iShoot=100;}
+	int CanShoot() {return !iShoot;}
+	int GetTargetType() {return iTargetType;}
+	CUnit * GetUnitTarget(){return UnitTarget;}
+	CStructure * GetStructTarget(){return StructTarget;}
+	void SetTarget(CUnit *ut, CStructure *st, int type);
+	int GetExplodeFrame(){return iExplodeFrame; }
 	int GetSubType() { return iSubType; };
 	void SetSubType(int iNewType) { iSubType=iNewType; };
 	void SetParent(CStructure *p);
@@ -39,7 +51,8 @@ public:
 	void Attack(BOOL b) {bIsAttacked=b;}
 	BOOL Selected() {return bIsSelected;}
 	BOOL Attacked() {return bIsAttacked;}
-	virtual int Update()=0;
+	BOOL Destroyed() {return (iExplodeFrame>=29?TRUE:FALSE);}
+	virtual int Update();
 	CUnit *next,*prev;
 	CUnit();
 	virtual ~CUnit();
