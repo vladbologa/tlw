@@ -47,7 +47,7 @@ BEGIN
             VALUE "Comments", "Jaymz' Game!\0"
             VALUE "CompanyName", "Vlad Bologa\0"
             VALUE "FileDescription", "DxGame\0"
-            VALUE "FileVersion", "0.2.2\0"
+            VALUE "FileVersion", "0.2.3\0"
             VALUE "InternalName", "TLW\0"
             VALUE "LegalCopyright", "Copyright © 2000 Vlad Bologa\0"
             VALUE "LegalTrademarks", "\0"
