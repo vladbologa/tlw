@@ -21,8 +21,6 @@ protected:
 	int TurnDestFrame;
 	BOOL IsTurning;
 	BOOL IsSelected;
-	int modxold, modyold;
-	int odd;
 
 public:
 	int GetCurrentFrame() { return CurrentFrame; };

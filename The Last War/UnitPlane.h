@@ -13,6 +13,8 @@
 
 class CUnitPlane : public CUnit  
 {
+	int modxold, modyold;
+	int odd;
 public:
 	int Update();
 	CUnitPlane();

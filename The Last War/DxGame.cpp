@@ -10,7 +10,6 @@
 #include "unitplane.h"
 
 #include <stdio.h>
-#include <mmsystem.h>
 #include <streams.h>
 #include <string.h>
 
@@ -22,7 +21,7 @@
 #define KEYDOWN(name,key) (name[key] & 0x80)
 #define WM_GRAPHNOTIFY  WM_USER+13
 #define WM_BEGINGAME	WM_USER+14
-#define HELPER_RELEASE(x) { if (x) x->Release(); x = NULL; }
+#define RELEASE(x) { if (x) x->Release(); x = NULL; }
 
 #define PLAYING TRUE
 #define STOPPED FALSE
@@ -96,12 +95,13 @@ BOOL StartGame(HWND);
 BOOL DirectDrawInit(HWND);
 BOOL DirectInputInit(HWND);
 BOOL TileInScreen(RECT);
+BOOL UpdateMainMenu();
 void DirectDrawUnInit();
 void DirectInputUnInit();
 int UpdateGame();
-int UpdateMainMenu();
 void LoadMenuFiles();
 void PlayFile(LPSTR, HWND);
+void PlayFileDDEx(LPSTR);
 void Loading(int, int);
 
 //***************List Class*****************
@@ -533,7 +533,6 @@ void GameEngine::LoadTerrainTiles(int tileset)
 	TerrainType[7].Load("c:\\GameArt\\Tiles\\treer3.bmp");
 	TerrainType[8].Load("c:\\GameArt\\Tiles\\treer4.bmp");
 
-
 	for (int i = 0; i < MAX_TILES; i++)
 	{
 		pDDTile[i]->GetDC(&hdc);
@@ -553,10 +552,8 @@ void GameEngine::GetMouseCoords(int &x, int &y)
 	m_x+=dims.lX * MouseSensitivity / 100;
 	m_y+=dims.lY * MouseSensitivity / 100;
 
-
 	if (m_x < 0) m_x = 0;
 	if (m_x > 640) m_x = 640;
-
 	if (m_y < 0) m_y = 0;
 	if (m_y > 480) m_y = 480;
 	
@@ -608,19 +605,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance,
      wndclass.hIconSm       = LoadIcon (NULL, IDI_APPLICATION);
 
      RegisterClassEx (&wndclass);
+     hwnd = CreateWindow (szAppName,szAppName,WS_POPUP,0,0,GetSystemMetrics(SM_CXSCREEN),GetSystemMetrics(SM_CYSCREEN),NULL,NULL,hInstance,NULL);
 	 
-     hwnd = CreateWindow (szAppName,
-		            szAppName,
-                    WS_POPUP,
-                    0,
-                    0,
-                    GetSystemMetrics(SM_CXSCREEN),
-                    GetSystemMetrics(SM_CYSCREEN),
-                    NULL,
-                    NULL,
-                    hInstance,
-		            NULL);
-
 	 if (hr!=DI_OK)
 	 {
 		INIT_ERROR=1;
@@ -645,8 +631,8 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 	switch (iMsg)
 	{
 	case WM_CREATE:
-		PlayFile("c:\\GameArt\\Mini-Intro.avi", hwnd);
-		//SendMessage(hwnd, WM_BEGINGAME, 0,0);
+		//PlayFile("c:\\GameArt\\Mini-Intro.avi", hwnd);
+		SendMessage(hwnd, WM_BEGINGAME, 0,0);
 		return 0;
 
 	case WM_BEGINGAME:
@@ -666,11 +652,11 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 					pivw->put_FullScreenMode(OAFALSE);
 					pivw->put_Visible(OAFALSE);
 
-                    HELPER_RELEASE(pivw);
-                    HELPER_RELEASE(pif);
-                    HELPER_RELEASE(pigb);
-                    HELPER_RELEASE(pimc);
-                    HELPER_RELEASE(pimex);
+                    RELEASE(pivw);
+                    RELEASE(pif);
+                    RELEASE(pigb);
+                    RELEASE(pimc);
+                    RELEASE(pimex);
 
                     FilmState = STOPPED;
 					SendMessage(hwnd, WM_BEGINGAME, 0,0);
@@ -945,59 +931,34 @@ BOOL DirectDrawInit(HWND hwnd)
 
 void DirectDrawUnInit()
 {
-	pDDSprite170x160->Release();
-	pDDSprite170x160=NULL;
+	RELEASE(pDDSprite170x160);
 	for (int i=3; i>=0; i--)
-	{
-		pDDSprite120x100[i]->Release();
-		pDDSprite120x100[i]=NULL;
-	}
-	pDDSprite185x160->Release();
-	pDDSprite185x160=NULL;
-	pDDPanel->Release();
-	pDDPanel=NULL;
-	pDDMenuOpt->Release();
-	pDDMenuOpt=NULL;
-	pDDMenuBegin->Release();
-	pDDMenuBegin=NULL;
-	pDDCursor->Release();
-	pDDCursor=NULL;
-	pDDOffscreen2->Release();
-	pDDOffscreen2=NULL;
-	pDDOffscreen->Release();
-	pDDOffscreen=NULL;
-	pDDUnitSelection->Release();
-	pDDUnitSelection=NULL;
+		RELEASE(pDDSprite120x100[i]);
+	RELEASE(pDDSprite185x160);
+	RELEASE(pDDPanel);
+	RELEASE(pDDMenuOpt);
+	RELEASE(pDDMenuBegin);
+	RELEASE(pDDCursor);
+	RELEASE(pDDOffscreen2);
+	RELEASE(pDDOffscreen);
+	RELEASE(pDDUnitSelection);
 	for (i=32; i>=0; i--)
-	{
-			pDDSprite120x90[i]->Release();
-			pDDSprite120x90[i]=NULL;
-	}
+			RELEASE(pDDSprite120x90[i]);
 	for (i=MAX_TILES-1; i>=0; i--)
-	{
-		pDDTile[i]->Release();
-		pDDTile[i]=NULL;
-	}
-	pDDClipper->Release();
-	pDDClipper=NULL;
-	pDDBackBuffer->Release();
-	pDDBackBuffer=NULL;
-	pDDPrimary->Release();
-	pDDPrimary=NULL;
-	pDD7->Release();
-	pDD7=NULL;
+		RELEASE(pDDTile[i]);
+	RELEASE(pDDClipper);
+	RELEASE(pDDBackBuffer);
+	RELEASE(pDDPrimary);
+	RELEASE(pDD7);
 }
 
 void DirectInputUnInit()
 {
 	pDIMouse->Unacquire();
-	pDIMouse->Release();
-	pDIMouse=NULL;
+	RELEASE(pDIMouse);
 	pDIKeyboard->Unacquire();
-	pDIKeyboard->Release();
-	pDIKeyboard=NULL;
-	pDI->Release();
-	pDI=NULL;
+	RELEASE(pDIKeyboard);
+	RELEASE(pDI);
 }
 
 void Loading(int BackgroundType, int Motion)
@@ -1052,7 +1013,6 @@ void PlayFile (LPSTR szFile, HWND hwnd)
 			pimc->Run();
 	}
 }
-
 
 void LoadMenuFiles()
 {	
@@ -1131,35 +1091,30 @@ BOOL StartGame(HWND hwnd)
 	return FALSE;
 }
 
-int UpdateMainMenu()
+BOOL UpdateMainMenu()
 {
 	static Selected = 0, SelOld, contor = 0, c = 0;
 	static CurX = 320, CurY = 160, CurXAnte = 320, CurYAnte = 160;
 	
 	DIMOUSESTATE dims;
-	HRESULT hr;
 	HDC hdc;
-	BOOL b, InRect, MEnter = FALSE, mGo = FALSE;
+	BOOL InRect, MEnter = FALSE, mGo = FALSE;
 	int max = 3;
 
-	hr = pDIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &dims);
-	if (FAILED(hr)) PostQuitMessage(0);
+	pDIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &dims);
+	pDIKeyboard->GetDeviceState(sizeof(buffer), (LPVOID)&buffer);
 	
 	CurX+=dims.lX * MouseSensitivity / 100;
 	CurY+=dims.lY * MouseSensitivity / 100;
 
-	hr = pDDOffscreen->GetDC(&hdc);
-	if (FAILED(hr)) PostQuitMessage(0);
-	b = MenuBack.Draw(hdc);
-	if (!b) PostQuitMessage(0);
+	pDDOffscreen->GetDC(&hdc);
+	MenuBack.Draw(hdc);
 	SetTextAlign(hdc, TA_BOTTOM | TA_RIGHT);
 	SetBkMode(hdc, TRANSPARENT);
 	SetTextColor(hdc, RGB(255,255,255));
 	TextOut(hdc, 640, 480, VERSION, strlen(VERSION));
-	hr = pDDOffscreen->ReleaseDC(hdc);
-	if (FAILED(hr)) PostQuitMessage(0);
-	hr = pDDBackBuffer->Blt(NULL, pDDOffscreen, NULL, DDBLT_WAIT, NULL);
-	if (FAILED(hr)) PostQuitMessage(0); 
+	pDDOffscreen->ReleaseDC(hdc);
+	pDDBackBuffer->Blt(NULL, pDDOffscreen, NULL, DDBLT_WAIT, NULL);
 
 	POINT pCursor = {CurX, CurY};
 	RECT DestRect, rBeginGame, rOptions;
@@ -1184,19 +1139,14 @@ int UpdateMainMenu()
 		if (PtInRect(&rBeginGame, pCursor)) Selected = 1;
 		if (PtInRect(&rOptions, pCursor)) Selected = 2;
 	}
-	
 	if (PtInRect(&rBeginGame, pCursor)) InRect = TRUE;
 	if (PtInRect(&rOptions, pCursor)) InRect = TRUE;
-
 	if ((Selected == 1)&& (InRect))
 	{
 		c++;
-		if (c % 2 == 0)
-			BGActual = BGActual->next;
+		if (c % 2 == 0) BGActual = BGActual->next;
 	}
-
-	if ((Selected == 2)&& (InRect))
-		OptActual = OptActual->next;
+	if ((Selected == 2)&& (InRect)) OptActual = OptActual->next;
 
 	pDDMenuBegin->GetDC(&hdc);
 	BGActual->Draw(hdc);
@@ -1208,20 +1158,18 @@ int UpdateMainMenu()
 
 	SetRect(&DestRect, 40, 170, 40 + 220, 170 + 220);
 	pDDBackBuffer->Blt(&DestRect, pDDMenuBegin, NULL, DDBLT_WAIT, NULL);
-
 	SetRect(&DestRect, 360, 200, 360 + 170, 200 + 150);
 	pDDBackBuffer->Blt(&DestRect, pDDMenuOpt, NULL, DDBLT_WAIT, NULL);
-
 	SetRect(&DestRect, CurX, CurY, CurX + 32, CurY + 32);
-	hr = pDDBackBuffer->Blt(&DestRect, pDDCursor, NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
-	if (FAILED(hr)) PostQuitMessage(0);
+	pDDBackBuffer->Blt(&DestRect, pDDCursor, NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
 
-	hr = pDDPrimary->Flip(NULL, DDFLIP_WAIT);
-	if (FAILED(hr)) PostQuitMessage(0);
-	
+	pDDPrimary->Flip(NULL, DDFLIP_WAIT);
+
 	if (dims.rgbButtons[0] & 0x80) MEnter = TRUE;
 	if ((Selected == 1) && MEnter) State = GAME_ACTIVE;
-	return 1;
+	if (KEYDOWN(buffer, DIK_ESCAPE)) return FALSE;
+
+	return TRUE;
 }
 
 int UpdateGame()

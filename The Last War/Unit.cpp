@@ -11,7 +11,6 @@
 CUnit::CUnit()
 {
 	CurrentFrame=0;
-	modxold=modyold=odd=0;
 }
 
 CUnit::~CUnit()

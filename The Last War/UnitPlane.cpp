@@ -4,6 +4,7 @@
 
 #include "stdafx.h"
 #include "UnitPlane.h"
+#include <math.h>
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -11,7 +12,8 @@
 
 CUnitPlane::CUnitPlane()
 {
-
+	modxold=modyold=odd=0;
+	TurnDestFrame=0;
 }
 
 CUnitPlane::~CUnitPlane()
@@ -52,6 +54,7 @@ int CUnitPlane::Update()
 			mody=2;
 		}
 	}
+	
 	if ((modx==0)&&(mody==0))
 	{
 		modx=modxold;
