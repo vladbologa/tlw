@@ -1,10 +1,27 @@
 The Last War - Version History
 ------------------------------
 
-TLW 0.4.1 (under development)
+TLW 0.6.1 (under development)
+
+TLW 0.6 (may 2002)
+*interface complete!
+*options screen implemented
+*new custom game implemented
+*mouse sensitivity customizable
+*music!
+
+TLW 0.5.1 (may 2002)
+*full object cleanup when exiting
+
+TLW 0.5 (may 2002)
+*functional missile
+*functional in-game menu
+*can go back to main menu from game
+*changed the new game dialog
+*minor bugfixes
 
 TLW 0.4 (may 2002)
-*ability to constr
+*ability to construct buildings
 
 TLW 0.3.7 (may 2002)
 *menu for Command Center (4 buttons)
@@ -39,7 +56,7 @@ TLW 0.3.1 (jan. 2002)
 *added functionality to the menu-bar
 *fixed and improved maps
 *changed tile size (to 160x160)
-*added music (mp3 support)
+*added music (experimental mp3 support)
 *bugfixes
 
 TLW 0.3 (jan. 2002):

@@ -19,12 +19,12 @@ CMap::~CMap()
 
 }
 
-void CMap::Load(int level)
+void CMap::Load(char *filename)
 {
 	int i,j;
 	FILE *in;
 
-	in = fopen("data\\Maps\\map.lwm", "rb");
+	in = fopen(filename, "rb");
 
 	fread(&SizeX,sizeof(BYTE),1,in);
 	fread(&SizeY,sizeof(BYTE),1,in);
@@ -69,11 +69,6 @@ void CMap::Load(int level)
 	fclose(in);
 }
 			
-BOOL CMap::Load(char *filename)
-{
-	return FALSE;
-}
-
 BYTE CMap::GetTerrainType(BYTE i, BYTE j)
 {
 	if ((i<SizeY)&&(j<SizeX))

@@ -23,8 +23,7 @@ public:
 	void Hold(int i, int j) {Free[i][j]=0;}
 	void Release(int i, int j) {Free[i][j]=1;}
 	BOOL Available(BYTE i, BYTE j);
-	BOOL Load(char *filename);
-	void Load(int level);
+	void Load(char *filename);
 	CMap();
 	virtual ~CMap();
 

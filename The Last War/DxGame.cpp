@@ -21,7 +21,7 @@
 #include <ddraw.h>
 #include <dinput.h>
 
-#define  VERSION "v0.5.1b"
+#define  VERSION "v0.6.1b"
  
 #define KEYDOWN(name,key) (name[key] & 0x80)
 #define WM_GRAPHNOTIFY  WM_USER+13
@@ -30,11 +30,6 @@
 
 #define PLAYING			TRUE
 #define STOPPED			FALSE
-
-#define LBT_BLACK		0
-#define LBT_TRANSPARENT	1
-#define LM_STATIC		0
-#define LM_DINAMIC		1
 
 #define TILESIZE		160
 #define MAX_TILES		5
@@ -59,17 +54,24 @@ enum GameState
 	MAIN_MENU = 0,
 	GAME_ACTIVE,
 	GAME_PAUSED,
-	NEW_GAME
+	NEW_GAME,
+	NEW_CUSTOM_GAME,
+	NEW_GAME_ERROR,
+	MENU_OPTIONS,
+	GAME_OPTIONS
 };
 
 GameState State = MAIN_MENU;
 BOOL FilmState = STOPPED;
 BOOL IsReading = FALSE;
+BOOL EnterDialog;
+int iFileNameLen;
 
 RECT ScreenSize;
 
 CBmp bmp;
 CBmp MenuBack, MINewGame[2], MIExit[2], MILoadGame[2], MIOptions[2];
+CBmp Options, bmpOK, bmpOKHover, bmpBtn1, bmpBtn2;
 CBmp Load, Cursor;
 
 LONG      evCode;
@@ -79,7 +81,8 @@ LONG      evParam2;
 int INIT_ERROR=0;
 char buffer[256];
 
-int MouseSensitivity = 200;
+int MouseSensitivity = 2;
+int Music=3;
 int CurX = 320, CurY = 160;
 int iResX, iResY;
 
@@ -89,6 +92,11 @@ IGraphBuilder *pigb  = NULL;
 IMediaControl *pimc  = NULL;
 IMediaEventEx *pimex = NULL;
 IVideoWindow  *pivw  = NULL;
+
+IBaseFilter   *pifMusic   = NULL;
+IGraphBuilder *pigbMusic  = NULL;
+IMediaControl *pimcMusic  = NULL;
+IMediaEventEx *pimexMusic = NULL;
 
 LPDIRECTDRAW7 pDD7 = NULL;
 LPDIRECTDRAWSURFACE7 pDDPrimary = NULL;
@@ -121,6 +129,9 @@ LPDIRECTDRAWSURFACE7 pDDAirportButton, pDDAirportButtonPressed;
 LPDIRECTDRAWSURFACE7 pDDPyramidButton, pDDPyramidButtonPressed;
 LPDIRECTDRAWSURFACE7 pDDGreenFrame, pDDRedFrame;
 LPDIRECTDRAWSURFACE7 pDDPauseOptions, pDDPauseEMenu, pDDPauseEGame, pDDPauseCont;
+LPDIRECTDRAWSURFACE7 pDDOptions, pDDOptionsOKP, pDDOptionsOKHover, pDDOptionsBtn1, pDDOptionsBtn2;
+LPDIRECTDRAWSURFACE7 pDDCustom, pDDCustomOKP, pDDCustomOKHover;
+LPDIRECTDRAWSURFACE7 pDDError, pDDErrorOKP, pDDErrorOKHover;
 LPDIRECTDRAWSURFACE7 pDDMissile;
 
 //Function prototypes
@@ -130,7 +141,10 @@ BOOL DirectDrawInit(int,int,HWND);
 BOOL DirectInputInit(HWND);
 BOOL TileInScreen(RECT);
 BOOL UpdateMainMenu();
+BOOL UpdateOptions(int, int);
+BOOL UpdateStartCustom(HWND);
 BOOL UpdateStartMenu(HWND);
+BOOL UpdateNewGameError();
 BOOL CreateGameOffscreenSurfaces();
 BOOL CreateMenuOffscreenSurfaces();
 void DirectDrawUnInit(int);
@@ -138,8 +152,8 @@ void DirectInputUnInit();
 int UpdateGame(HWND);
 void LoadMenuFiles();
 void PlayFile(LPSTR, HWND);
-void PlayFileDDEx(LPSTR);
-void Loading(int, int);
+void PlayMusic(LPSTR);
+void Loading();
 void DarkenScreen();
 
 //***************List Class*****************
@@ -196,7 +210,7 @@ public:
 	void CorrectCoords();
 	BOOL Update(int Reserved = 0);
 	BOOL UpdateTerrain(int x = 0, int y = 0);
-	BOOL Load(int Level = 0, int Reserved = 0);
+	BOOL Load(char *filename);
 	void LoadTerrainTiles(int tileset = 0);
 	void AddUnit(int iType, int iSubType, CStructure *Parent);
 };
@@ -249,7 +263,6 @@ BOOL GameEngine::Update(int Reserved)
 		Unit=first;
 		while (Unit)
 		{
-
 			pt.x=Unit->GetX()-CurentX;
 			pt.y=Unit->GetY()-CurentY;
 			
@@ -1052,6 +1065,7 @@ BOOL GameEngine::Update(int Reserved)
 	TextOut(hdc, 800, 600, _itoa_t, strlen(_itoa_t));
 	pDDBackBuffer->ReleaseDC(hdc);*/
 
+	SetRect(&rButton,710,540,710 + 80,540 + 45);
 	if (PtInRect(&rButton,pCursor)&&MenuButtonPressedOld&&(!bLeftBtnPressed))
 	{
 		State=GAME_PAUSED;
@@ -1191,16 +1205,60 @@ BOOL GameEngine::UpdatePauseMenu(HWND hwnd)
 	{
 	case 1:
 		pDDBackBuffer->Blt(&rOptions, pDDPauseOptions, NULL, DDBLT_WAIT, NULL);
+		if (bLeftBtnPressed)
+		{
+			pDDOffscreen->Blt(NULL, pDDBackBuffer, NULL, DDBLT_WAIT, NULL);
+			CurX=m_x;
+			CurY=m_y;
+			State=GAME_OPTIONS;
+		}
 		break;
 	case 2:
 		pDDBackBuffer->Blt(&rEMenu, pDDPauseEMenu, NULL, DDBLT_WAIT, NULL);
 		if (bLeftBtnPressed)
 		{
+			if (first)
+			{
+				Unit=first;
+				while (Unit->next)
+				{
+					temp=Unit;
+					Unit=Unit->next;
+					delete temp;
+				}
+				delete Unit;
+				first=NULL;
+			}
+			if (mfirst)
+			{
+				Missile=mfirst;
+				while (Missile->next)
+				{
+					mtemp=Missile;
+					Missile=Missile->next;
+					delete mtemp;
+				}
+				delete Missile;
+				mfirst=NULL;
+			}
+			if (sfirst)
+			{
+				Struct=sfirst;
+				while (Struct->next)
+				{
+					stemp=Struct;
+					Struct=Struct->next;
+					delete stemp;
+				}
+				delete Struct;
+				sfirst=NULL;
+			}
+
 			State=MAIN_MENU;
 			DirectDrawUnInit(UNINIT_GAME);
 			DirectDrawInit(640,480,hwnd);
 			CreateMenuOffscreenSurfaces();
-			Loading(LBT_BLACK, LM_STATIC);
+			Loading();
 			LoadMenuFiles();
 			pDDCursor->GetDC(&hdc);
 			Cursor.Draw(hdc);
@@ -1345,8 +1403,8 @@ void GameEngine::GetMouseCoords(int &x, int &y)
 	HRESULT hr = pDIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &dims);
 	if (FAILED(hr)) PostQuitMessage(0);
 	
-	m_x+=dims.lX * MouseSensitivity / 100;
-	m_y+=dims.lY * MouseSensitivity / 100;
+	m_x+=dims.lX * MouseSensitivity;
+	m_y+=dims.lY * MouseSensitivity;
 
 	if (m_x < 0) m_x = 0;
 	if (m_x > iResX) m_x = iResX;
@@ -1370,7 +1428,7 @@ void GameEngine::ShowMouse()
 	if (FAILED(hr)) PostQuitMessage(0);
 }
 
-GameEngine::Load(int Level, int Reserved)
+GameEngine::Load(char *filename)
 {
 	CBmp bmp;
 	HDC hdc;
@@ -1385,25 +1443,34 @@ GameEngine::Load(int Level, int Reserved)
 	first=NULL;
 	mfirst=NULL;
 
-	Map.Load(Level);
+	Map.Load(filename);
 	LoadTerrainTiles();	
 	
 	Struct=(CStructCCenter *) new CStructCCenter;
 	Struct->SetPosition(160,160,&Map);
 	Struct->prev=NULL;
 	sfirst=Struct;
-	Struct=(CStructOilPlant *) new CStructOilPlant;
-	Struct->SetPosition(400,160,&Map);
-	sfirst->next=Struct;
-	stemp=(CStructPyramid *) new CStructPyramid;
-	Struct->next=stemp;
-	stemp->SetPosition(1440,800,&Map);
-	stemp->prev=Struct;
-	Struct=stemp;
-	stemp=(CStructAirport *) new CStructAirport;
-	Struct->next=stemp;
-	stemp->SetPosition(800,160,&Map);
-	stemp->next=NULL;
+	sfirst->next=NULL;
+
+	pDDOptions->GetDC(&hdc);
+	Options.Draw(hdc);
+	pDDOptions->ReleaseDC(hdc);
+
+	pDDOptionsOKP->GetDC(&hdc);
+	bmpOK.Draw(hdc);
+	pDDOptionsOKP->ReleaseDC(hdc);
+
+	pDDOptionsOKHover->GetDC(&hdc);
+	bmpOKHover.Draw(hdc);
+	pDDOptionsOKHover->ReleaseDC(hdc);
+
+	pDDOptionsBtn1->GetDC(&hdc);
+	bmpBtn1.Draw(hdc);
+	pDDOptionsBtn1->ReleaseDC(hdc);
+
+	pDDOptionsBtn2->GetDC(&hdc);
+	bmpBtn2.Draw(hdc);
+	pDDOptionsBtn2->ReleaseDC(hdc);
 		
 	bmp.Load("data\\interface\\mb01.bmp");
 	pDDMenuButtonPressed->GetDC(&hdc);
@@ -1722,7 +1789,7 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 					pivw->put_FullScreenMode(OAFALSE);
 					pivw->put_Visible(OAFALSE);
 
-                    RELEASE(pivw);
+					RELEASE(pivw);
                     RELEASE(pif);
                     RELEASE(pigb);
                     RELEASE(pimc);
@@ -1988,6 +2055,32 @@ BOOL CreateMenuOffscreenSurfaces()
 	Offscreen.dwHeight = 21;
 	pDD7->CreateSurface(&Offscreen, &pDDSMCustom, NULL);
 
+	Offscreen.dwWidth = 387;
+	Offscreen.dwHeight = 234;
+	pDD7->CreateSurface(&Offscreen, &pDDOptions, NULL);
+
+	Offscreen.dwWidth = 85;
+	Offscreen.dwHeight = 33;
+	pDD7->CreateSurface(&Offscreen, &pDDOptionsOKP, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDOptionsOKHover, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDCustomOKP, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDCustomOKHover, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDErrorOKP, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDErrorOKHover, NULL);
+
+	Offscreen.dwWidth = 15;
+	Offscreen.dwHeight = 17;
+	pDD7->CreateSurface(&Offscreen, &pDDOptionsBtn1, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDOptionsBtn2, NULL);
+	
+	Offscreen.dwWidth = 387;
+	Offscreen.dwHeight = 140;
+	pDD7->CreateSurface(&Offscreen, &pDDCustom, NULL);
+
+	Offscreen.dwWidth = 193;
+	Offscreen.dwHeight = 107;
+	pDD7->CreateSurface(&Offscreen, &pDDError, NULL);
+	
 	return TRUE;
 }
 
@@ -2137,6 +2230,20 @@ BOOL CreateGameOffscreenSurfaces()
 	Offscreen.dwWidth = 185;
 	Offscreen.dwHeight = 45;
 	pDD7->CreateSurface(&Offscreen, &pDDPauseCont, NULL);
+	
+	Offscreen.dwWidth = 387;
+	Offscreen.dwHeight = 234;
+	pDD7->CreateSurface(&Offscreen, &pDDOptions, NULL);
+
+	Offscreen.dwWidth = 85;
+	Offscreen.dwHeight = 33;
+	pDD7->CreateSurface(&Offscreen, &pDDOptionsOKP, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDOptionsOKHover, NULL);
+	
+	Offscreen.dwWidth = 15;
+	Offscreen.dwHeight = 17;
+	pDD7->CreateSurface(&Offscreen, &pDDOptionsBtn1, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDOptionsBtn2, NULL);
 
 	return TRUE;
 }
@@ -2145,6 +2252,11 @@ void DirectDrawUnInit(int iType)
 {
 	if (iType==UNINIT_GAME)
 	{
+		RELEASE(pDDOptionsBtn2);
+		RELEASE(pDDOptionsBtn1);
+		RELEASE(pDDOptionsOKHover);
+		RELEASE(pDDOptionsOKP);
+		RELEASE(pDDOptions);
 		RELEASE(pDDPauseCont);
 		RELEASE(pDDPauseEGame);
 		RELEASE(pDDPauseEMenu);
@@ -2196,6 +2308,17 @@ void DirectDrawUnInit(int iType)
 
 	if (iType==UNINIT_MENU)
 	{
+		RELEASE(pDDError);
+		RELEASE(pDDCustom);
+		RELEASE(pDDOptionsBtn2);
+		RELEASE(pDDOptionsBtn1);
+		RELEASE(pDDErrorOKHover);
+		RELEASE(pDDErrorOKP);
+		RELEASE(pDDCustomOKHover);
+		RELEASE(pDDCustomOKP);
+		RELEASE(pDDOptionsOKHover);
+		RELEASE(pDDOptionsOKP);
+		RELEASE(pDDOptions);
 		RELEASE(pDDSMCustom);
 		RELEASE(pDDSMNewGame);
 		RELEASE(pDDMenuSM);
@@ -2224,29 +2347,19 @@ void DirectInputUnInit()
 	RELEASE(pDI);
 }
 
-void Loading(int BackgroundType, int Motion)
+void Loading()
 {
 	HDC hdc;
 	HRESULT hr;
 	RECT rSrcRect;
 
-	switch (Motion)
-	{
-	case 0:
-		pDDOffscreen->GetDC(&hdc);
-		Load.Draw(hdc);
-		pDDOffscreen->ReleaseDC(hdc);
-		SetRect(&rSrcRect,0,0,640,480);
-		if (BackgroundType == LBT_BLACK)
-			hr = pDDBackBuffer->Blt(NULL, pDDOffscreen, &rSrcRect, DDBLT_WAIT, NULL);
-		if (BackgroundType == LBT_TRANSPARENT)
-			pDDBackBuffer->Blt(NULL, pDDOffscreen, &rSrcRect, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
-		hr = pDDPrimary->Flip(NULL, DDFLIP_WAIT);
-		if (hr!=DD_OK) PostQuitMessage(0);
-		break;
-	case 1:
-		break;
-	}
+	pDDOffscreen->GetDC(&hdc);
+	Load.Draw(hdc);
+	pDDOffscreen->ReleaseDC(hdc);
+	SetRect(&rSrcRect,0,0,640,480);
+	hr = pDDBackBuffer->Blt(NULL, pDDOffscreen, &rSrcRect, DDBLT_WAIT, NULL);
+	hr = pDDPrimary->Flip(NULL, DDFLIP_WAIT);
+	if (hr!=DD_OK) PostQuitMessage(0);
 }
 
 void PlayFile (LPSTR szFile, HWND hwnd)
@@ -2270,12 +2383,26 @@ void PlayFile (LPSTR szFile, HWND hwnd)
 		if (FAILED(pimex->SetNotifyWindow((OAHWND)hwnd, WM_GRAPHNOTIFY, 0)))
 			PostQuitMessage(0);
 		
-
 		FilmState = PLAYING;
 
 		if (SUCCEEDED(hr))
 			pimc->Run();
 	}
+}
+
+void PlayMusic(LPSTR szFile)
+{
+	WCHAR wFile[MAX_PATH];
+	
+	MultiByteToWideChar( CP_ACP, 0, szFile, -1, wFile, MAX_PATH);
+	RELEASE(pimexMusic);
+	RELEASE(pimcMusic);
+	RELEASE(pigbMusic);
+	CoCreateInstance(CLSID_FilterGraph, NULL, CLSCTX_INPROC_SERVER, IID_IGraphBuilder, (void **)&pigbMusic);
+	pigbMusic->QueryInterface(IID_IMediaControl, (void **)&pimcMusic);
+	pigbMusic->QueryInterface(IID_IMediaEventEx, (void **)&pimexMusic);
+	pigbMusic->RenderFile(wFile, NULL);
+	pimcMusic->Run();
 }
 
 void DarkenScreen()
@@ -2312,6 +2439,31 @@ void LoadMenuFiles()
 	if(FAILED(hr)) PostQuitMessage(0);
 	b = Cursor.Draw(hdc);
 	pDDCursor->ReleaseDC(hdc);
+
+	Options.Load("data\\Menu\\options.bmp");
+	pDDOptions->GetDC(&hdc);
+	Options.Draw(hdc);
+	pDDOptions->ReleaseDC(hdc);
+
+	bmpOK.Load("data\\Menu\\okp.bmp");
+	pDDOptionsOKP->GetDC(&hdc);
+	bmpOK.Draw(hdc);
+	pDDOptionsOKP->ReleaseDC(hdc);
+
+	bmpOKHover.Load("data\\Menu\\okhover.bmp");
+	pDDOptionsOKHover->GetDC(&hdc);
+	bmpOKHover.Draw(hdc);
+	pDDOptionsOKHover->ReleaseDC(hdc);
+
+	bmpBtn1.Load("data\\Menu\\btn1.bmp");
+	pDDOptionsBtn1->GetDC(&hdc);
+	bmpBtn1.Draw(hdc);
+	pDDOptionsBtn1->ReleaseDC(hdc);
+
+	bmpBtn2.Load("data\\Menu\\btn2.bmp");
+	pDDOptionsBtn2->GetDC(&hdc);
+	bmpBtn2.Draw(hdc);
+	pDDOptionsBtn2->ReleaseDC(hdc);
 
 	BGActual = new CBmpList;
 	BGFirst = BGActual;
@@ -2381,6 +2533,36 @@ void LoadMenuFiles()
 	pDDSMCustom->GetDC(&hdc);
 	bmp.Draw(hdc);
 	pDDSMCustom->ReleaseDC(hdc);
+
+	bmp.Load("data\\Menu\\cdialog.bmp");
+	pDDCustom->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDCustom->ReleaseDC(hdc);
+
+	bmp.Load("data\\Menu\\cokp.bmp");
+	pDDCustomOKP->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDCustomOKP->ReleaseDC(hdc);
+
+	bmp.Load("data\\Menu\\cokhover.bmp");
+	pDDCustomOKHover->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDCustomOKHover->ReleaseDC(hdc);
+
+	bmp.Load("data\\Menu\\error.bmp");
+	pDDError->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDError->ReleaseDC(hdc);
+
+	bmp.Load("data\\Menu\\eokp.bmp");
+	pDDErrorOKP->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDErrorOKP->ReleaseDC(hdc);
+
+	bmp.Load("data\\Menu\\eokhover.bmp");
+	pDDErrorOKHover->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDErrorOKHover->ReleaseDC(hdc);
 }
 
 BOOL StartGame(HWND hwnd)
@@ -2402,14 +2584,27 @@ BOOL StartGame(HWND hwnd)
 	BOOL b;
 	b = Load.Load("data\\Interface\\Loading.bmp");
 	if (!b) PostQuitMessage(0);
-
-	Loading(LBT_BLACK, LM_STATIC);
+	
+	Loading();
 	LoadMenuFiles();
-	//PlayFile("C:\\MP3\\Rock\\Other\\Apocalyptica - Hope.mp3", hwnd);
-	//PlayFile("C:\\MP3\\Rock\\Manowar\\1996 Louder than Hell\\LTHELL08.MP3", hwnd);
+	
+	CoCreateInstance(CLSID_FilterGraph, NULL, CLSCTX_INPROC_SERVER, IID_IGraphBuilder, (void **)&pigbMusic);
+	pigbMusic->QueryInterface(IID_IMediaControl, (void **)&pimcMusic);
+	pigbMusic->QueryInterface(IID_IMediaEventEx, (void **)&pimexMusic);
+	/*Music=1;
+	PlayMusic("data\\music\\cello.mp3");*/
+
 	while (UpdateGame(hwnd));
+
+	RELEASE(pimexMusic);
+	RELEASE(pimcMusic);
+	RELEASE(pigbMusic);
+
 	DirectInputUnInit();
-	DirectDrawUnInit(UNINIT_GAME);
+	if ((State==GAME_ACTIVE)||(State==GAME_PAUSED))
+		DirectDrawUnInit(UNINIT_GAME);
+	else if (State==MAIN_MENU)
+		DirectDrawUnInit(UNINIT_MENU);
 	return FALSE;
 }
 
@@ -2425,8 +2620,8 @@ BOOL UpdateMainMenu()
 	pDIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &dims);
 	pDIKeyboard->GetDeviceState(sizeof(buffer), (LPVOID)&buffer);
 	
-	CurX+=dims.lX * MouseSensitivity / 100;
-	CurY+=dims.lY * MouseSensitivity / 100;
+	CurX+=dims.lX * MouseSensitivity;
+	CurY+=dims.lY * MouseSensitivity;
 
 	POINT pCursor = {CurX, CurY};
 
@@ -2498,6 +2693,12 @@ BOOL UpdateMainMenu()
 		pDDOffscreen->Blt(NULL, pDDBackBuffer, NULL, DDBLT_WAIT, NULL);
 		DarkenScreen();
 	}
+	if ((Selected == 2) && MEnter)
+	{
+		State=MENU_OPTIONS;
+		pDDOffscreen->Blt(NULL, pDDBackBuffer, NULL, DDBLT_WAIT, NULL);
+		DarkenScreen();
+	}
 	if (KEYDOWN(buffer, DIK_ESCAPE)||((Selected == 3) && MEnter)) return FALSE;
 
 	SetRect(&DestRect, CurX, CurY, CurX + 32, CurY + 32);
@@ -2521,8 +2722,8 @@ BOOL UpdateStartMenu(HWND hwnd)
 	pDIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &dims);
 	pDIKeyboard->GetDeviceState(sizeof(buffer), (LPVOID)&buffer);
 	
-	CurX+=dims.lX * MouseSensitivity / 100;
-	CurY+=dims.lY * MouseSensitivity / 100;
+	CurX+=dims.lX * MouseSensitivity;
+	CurY+=dims.lY * MouseSensitivity;
 
 	POINT pCursor = {CurX, CurY};
 	
@@ -2553,23 +2754,355 @@ BOOL UpdateStartMenu(HWND hwnd)
 	pDDPrimary->Flip(NULL, DDFLIP_WAIT);
 
 	if (dims.rgbButtons[0] & 0x80) MEnter = TRUE;
-	if ((Selected == 1) && MEnter) 
+	if (MEnter)
+		switch (Selected)
+		{
+		case 1:
+			State=GAME_ACTIVE;
+			DirectDrawUnInit(UNINIT_MENU);
+			DirectDrawInit(800,600,hwnd);
+			CreateGameOffscreenSurfaces();
+			Loading();
+			Engine.Load("data\\Maps\\map.lwm");
+			pDDCursor->GetDC(&hdc);
+			Cursor.Draw(hdc);
+			pDDCursor->ReleaseDC(hdc);
+			break;
+		case 2:
+			State=NEW_CUSTOM_GAME;
+			EnterDialog=TRUE;
+			iFileNameLen=0;
+			break;
+		}
+	return TRUE;
+}
+
+BOOL UpdateOptions(int lx, int ty)
+{
+	RECT DestRect, rOK, rLow, rNormal, rHigh, rCello, rRock, rOff;
+	RECT rBtnLow, rBtnNormal, rBtnHigh, rBtnCello, rBtnRock, rBtnOff;
+	DIMOUSESTATE dims;
+	static BOOL bLMB=FALSE, bLMBOld=FALSE, bOKP=FALSE, bOKPOld=FALSE;
+	static BOOL bLow=FALSE, bLowOld=FALSE, bNormal=FALSE, bNormalOld=FALSE, bHigh=FALSE, bHighOld=FALSE;
+	static BOOL bCello=FALSE, bCelloOld=FALSE, bRock=FALSE, bRockOld=FALSE, bOff=FALSE, bOffOld=FALSE;
+
+	pDIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &dims);
+	
+	CurX+=dims.lX * MouseSensitivity;
+	CurY+=dims.lY * MouseSensitivity;
+	if (dims.rgbButtons[0] & 0x80) bLMB=TRUE;
+	else bLMB=FALSE;
+
+	if (!bLMB) bOKP=bLow=bHigh=bNormal=bCello=bRock=bOff=FALSE;
+
+	POINT pCursor = {CurX, CurY};
+	if (CurX<0) CurX = 0;
+	if (CurY<0) CurY = 0;
+	if (CurX>640) CurX = 640;
+	if (CurY>480) CurY = 480;
+
+	SetRect(&DestRect, lx, ty, lx+387, ty+234);
+	SetRect(&rOK, lx+159,ty+186,lx+159+85,ty+186+33);
+	SetRect(&rLow,lx+40,ty+82,lx+40+42,ty+82+14);
+	SetRect(&rNormal,lx+151,ty+82,lx+151+60,ty+82+14);
+	SetRect(&rHigh,lx+280,ty+82,lx+280+41,ty+82+17);
+	SetRect(&rCello,lx+40,ty+148,lx+40+47,ty+148+14);
+	SetRect(&rRock,lx+151,ty+148,lx+151+44,ty+148+14);
+	SetRect(&rOff,lx+280,ty+148,lx+280+35,ty+148+14);
+	SetRect(&rBtnLow,lx+39, ty+82, lx+39+15, ty+82+17);
+	SetRect(&rBtnNormal,lx+150, ty+82, lx+150+15, ty+82+17);
+	SetRect(&rBtnHigh,lx+278, ty+82, lx+278+15, ty+82+17);
+	SetRect(&rBtnCello,lx+39, ty+148, lx+39+15, ty+148+17);
+	SetRect(&rBtnRock,lx+150, ty+148, lx+150+15, ty+148+17);
+	SetRect(&rBtnOff,lx+278, ty+148, lx+278+15, ty+148+17);
+
+	pDDBackBuffer->Blt(NULL, pDDOffscreen, NULL, DDBLT_WAIT, NULL);
+	pDDBackBuffer->Blt(&DestRect, pDDOptions, NULL, DDBLT_WAIT, NULL);
+
+	if (PtInRect(&rOK, pCursor))
+		if (bLMB)
+		{
+			if (!bLMBOld) bOKP=TRUE;
+			if (bOKP) pDDBackBuffer->Blt(&rOK, pDDOptionsOKP, NULL, DDBLT_WAIT, NULL);
+		}
+		else pDDBackBuffer->Blt(&rOK, pDDOptionsOKHover, NULL, DDBLT_WAIT, NULL);
+	if (PtInRect(&rOK,pCursor)&&bOKPOld&&(!bLMB)) 
 	{
-		State=GAME_ACTIVE;
-		DirectDrawUnInit(UNINIT_MENU);
-		DirectDrawInit(800,600,hwnd);
-		CreateGameOffscreenSurfaces();
-		Loading(LBT_BLACK, LM_STATIC);
-		Engine.Load();
-		pDDCursor->GetDC(&hdc);
-		Cursor.Draw(hdc);
-		pDDCursor->ReleaseDC(hdc);
+		if (State==MENU_OPTIONS) State=MAIN_MENU;
+		else if (State=GAME_OPTIONS) State=GAME_PAUSED;
 	}
+
+	if (PtInRect(&rLow, pCursor)) if (bLMB) if (!bLMBOld) bLow=TRUE;
+	if (PtInRect(&rNormal, pCursor)) if (bLMB) if (!bLMBOld) bNormal=TRUE;
+	if (PtInRect(&rHigh, pCursor)) if (bLMB) if (!bLMBOld) bHigh=TRUE;
+	if (PtInRect(&rCello, pCursor)) if (bLMB) if (!bLMBOld) bCello=TRUE;
+	if (PtInRect(&rRock, pCursor)) if (bLMB) if (!bLMBOld) bRock=TRUE;
+	if (PtInRect(&rOff, pCursor)) if (bLMB) if (!bLMBOld) bOff=TRUE;
+
+	if (PtInRect(&rLow,pCursor)&&bLowOld&&(!bLMB)) MouseSensitivity=1;
+	if (PtInRect(&rNormal,pCursor)&&bNormalOld&&(!bLMB)) MouseSensitivity=2;
+	if (PtInRect(&rHigh,pCursor)&&bHighOld&&(!bLMB)) MouseSensitivity=3;
+	if (PtInRect(&rCello,pCursor)&&bCelloOld&&(!bLMB)) 
+	{
+		if (Music!=3) pimcMusic->Stop();
+		Music=1;
+		PlayMusic("data\\music\\cello.mp3");
+	}
+	if (PtInRect(&rRock,pCursor)&&bRockOld&&(!bLMB))
+	{
+		if (Music!=3) pimcMusic->Stop();
+		Music=2;
+		PlayMusic("data\\music\\rock.mp3");
+	}
+	if (PtInRect(&rOff,pCursor)&&bOffOld&&(!bLMB)) 
+	{
+		if (Music!=3) pimcMusic->Stop();
+		Music=3;
+	}
+
+	switch (MouseSensitivity)
+	{
+	case 1:
+		pDDBackBuffer->Blt(&rBtnLow, pDDOptionsBtn1, NULL, DDBLT_WAIT, NULL);
+		break;
+	case 2:
+		pDDBackBuffer->Blt(&rBtnNormal, pDDOptionsBtn1, NULL, DDBLT_WAIT, NULL);
+		break;
+	case 3:
+		pDDBackBuffer->Blt(&rBtnHigh, pDDOptionsBtn1, NULL, DDBLT_WAIT, NULL);
+		break;
+	}
+
+	switch (Music)
+	{
+	case 1:
+		pDDBackBuffer->Blt(&rBtnCello, pDDOptionsBtn2, NULL, DDBLT_WAIT, NULL);
+		break;
+	case 2:
+		pDDBackBuffer->Blt(&rBtnRock, pDDOptionsBtn2, NULL, DDBLT_WAIT, NULL);
+		break;
+	case 3:
+		pDDBackBuffer->Blt(&rBtnOff, pDDOptionsBtn2, NULL, DDBLT_WAIT, NULL);
+		break;
+	}
+
+	SetRect(&DestRect, CurX, CurY, CurX + 32, CurY + 32);
+	pDDBackBuffer->Blt(&DestRect, pDDCursor, NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
+	pDDPrimary->Flip(NULL, DDFLIP_WAIT);
+	bLMBOld=bLMB;
+	bOKPOld=bOKP;
+	bLowOld=bLow;
+	bNormalOld=bNormal;
+	bHighOld=bHigh;
+	bCelloOld=bCello;
+	bRockOld=bRock;
+	bOffOld=bOff;
+	return TRUE;
+}
+
+BOOL UpdateStartCustom(HWND hwnd)
+{
+	HDC hdc;
+	FILE *in;
+	RECT DestRect, rOK;
+	DIMOUSESTATE dims;
+	static BOOL bLMB=FALSE, bLMBOld=FALSE, bOKP=FALSE, bOKPOld=FALSE, back, prev_back;
+	static char map_name[35], key, prev_key;
+
+	if (EnterDialog) 
+	{
+		prev_key=NULL;
+		prev_back=NULL;
+	}
+	key=NULL;
+	back=NULL;
+
+	pDIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &dims);
+	pDIKeyboard->GetDeviceState(sizeof(buffer), (LPVOID)&buffer);
+	
+	CurX+=dims.lX * MouseSensitivity;
+	CurY+=dims.lY * MouseSensitivity;
+	if (dims.rgbButtons[0] & 0x80) bLMB=TRUE;
+	else bLMB=FALSE;
+
+	if (!bLMB) bOKP=FALSE;
+
+	POINT pCursor = {CurX, CurY};
+
+	if (CurX<0) CurX = 0;
+	if (CurY<0) CurY = 0;
+	if (CurX>640) CurX = 640;
+	if (CurY>480) CurY = 480;
+
+	SetRect(&DestRect, 126, 170, 126+387, 170+140);
+	SetRect(&rOK, 126+155,170+101,126+155+85,170+101+33);
+
+	pDDBackBuffer->Blt(NULL, pDDOffscreen, NULL, DDBLT_WAIT, NULL);
+	pDDBackBuffer->Blt(&DestRect, pDDCustom, NULL, DDBLT_WAIT, NULL);
+
+	if (KEYDOWN(buffer, DIK_A)) key='a';
+	if (KEYDOWN(buffer, DIK_S)) key='s';
+	if (KEYDOWN(buffer, DIK_D)) key='d';
+	if (KEYDOWN(buffer, DIK_F)) key='f';
+	if (KEYDOWN(buffer, DIK_G)) key='g';
+	if (KEYDOWN(buffer, DIK_H)) key='h';
+	if (KEYDOWN(buffer, DIK_J)) key='j';
+	if (KEYDOWN(buffer, DIK_K)) key='k';
+	if (KEYDOWN(buffer, DIK_L)) key='l';
+	if (KEYDOWN(buffer, DIK_Z)) key='z';
+	if (KEYDOWN(buffer, DIK_X)) key='x';
+	if (KEYDOWN(buffer, DIK_C)) key='c';
+	if (KEYDOWN(buffer, DIK_V)) key='v';
+	if (KEYDOWN(buffer, DIK_B)) key='b';
+	if (KEYDOWN(buffer, DIK_N)) key='n';
+	if (KEYDOWN(buffer, DIK_M)) key='m';
+	if (KEYDOWN(buffer, DIK_Q)) key='q';
+	if (KEYDOWN(buffer, DIK_W)) key='w';
+	if (KEYDOWN(buffer, DIK_E)) key='e';
+	if (KEYDOWN(buffer, DIK_R)) key='r';
+	if (KEYDOWN(buffer, DIK_T)) key='t';
+	if (KEYDOWN(buffer, DIK_Y)) key='y';
+	if (KEYDOWN(buffer, DIK_U)) key='u';
+	if (KEYDOWN(buffer, DIK_I)) key='i';
+	if (KEYDOWN(buffer, DIK_O)) key='o';
+	if (KEYDOWN(buffer, DIK_P)) key='p';
+	if (KEYDOWN(buffer, DIK_1)) key='1';
+	if (KEYDOWN(buffer, DIK_2)) key='2';
+	if (KEYDOWN(buffer, DIK_3)) key='3';
+	if (KEYDOWN(buffer, DIK_4)) key='4';
+	if (KEYDOWN(buffer, DIK_5)) key='5';
+	if (KEYDOWN(buffer, DIK_6)) key='6';
+	if (KEYDOWN(buffer, DIK_7)) key='7';
+	if (KEYDOWN(buffer, DIK_8)) key='8';
+	if (KEYDOWN(buffer, DIK_9)) key='9';
+	if (KEYDOWN(buffer, DIK_0)) key='0';
+
+	if (key) if (key!=prev_key&&iFileNameLen<=30) map_name[iFileNameLen++]=key;
+	map_name[iFileNameLen]=NULL;
+	if (KEYDOWN(buffer, DIK_BACK))
+	{
+		back=TRUE;
+		if (back!=prev_back)
+		{
+			iFileNameLen--;
+			if (iFileNameLen<0) iFileNameLen=0;
+			map_name[iFileNameLen]=NULL;
+		}
+	}
+	pDDBackBuffer->GetDC(&hdc);
+	SetBkMode(hdc, TRANSPARENT);
+	SetTextColor(hdc, RGB(255,255,255));
+	TextOut(hdc, 230, 232, map_name, strlen(map_name));
+	pDDBackBuffer->ReleaseDC(hdc);
+
+	if (PtInRect(&rOK, pCursor))
+		if (bLMB)
+		{
+			if (!bLMBOld&&!EnterDialog) bOKP=TRUE;
+			if (bOKP) pDDBackBuffer->Blt(&rOK, pDDCustomOKP, NULL, DDBLT_WAIT, NULL);
+		}
+		else pDDBackBuffer->Blt(&rOK, pDDCustomOKHover, NULL, DDBLT_WAIT, NULL);
+	if (PtInRect(&rOK,pCursor)&&bOKPOld&&(!bLMB)) 
+	{
+		char filename[50]="data\\maps\\";
+		for (unsigned int i=0; i<strlen(map_name); i++) filename[i+10]=map_name[i];
+		i=10+strlen(map_name);
+		filename[i]='.'; filename[i+1]='l';filename[i+2]='w'; filename[i+3]='m';
+		filename[i+4]=NULL;
+		in = fopen(filename, "rb");
+		if (in)
+		{
+			State=GAME_ACTIVE;
+			DirectDrawUnInit(UNINIT_MENU);
+			DirectDrawInit(800,600,hwnd);
+			CreateGameOffscreenSurfaces();
+			Loading();
+			Engine.Load(filename);
+			pDDCursor->GetDC(&hdc);
+			Cursor.Draw(hdc);
+			pDDCursor->ReleaseDC(hdc);
+			fclose(in);
+		}
+		else State=NEW_GAME_ERROR;
+	}
+
+	SetRect(&DestRect, CurX, CurY, CurX + 32, CurY + 32);
+	pDDBackBuffer->Blt(&DestRect, pDDCursor, NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
+	pDDPrimary->Flip(NULL, DDFLIP_WAIT);
+	bLMBOld=bLMB;
+	bOKPOld=bOKP;
+	EnterDialog=FALSE;
+	prev_key=key;
+	prev_back=back;
+	return TRUE;
+}
+
+BOOL UpdateNewGameError()
+{
+	RECT DestRect, rOK;
+	DIMOUSESTATE dims;
+	static BOOL bLMB=FALSE, bLMBOld=FALSE, bOKP=FALSE, bOKPOld=FALSE;
+	
+	pDIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &dims);
+	
+	CurX+=dims.lX * MouseSensitivity;
+	CurY+=dims.lY * MouseSensitivity;
+	if (dims.rgbButtons[0] & 0x80) bLMB=TRUE;
+	else bLMB=FALSE;
+
+	if (!bLMB) bOKP=FALSE;
+
+	POINT pCursor = {CurX, CurY};
+	if (CurX<0) CurX = 0;
+	if (CurY<0) CurY = 0;
+	if (CurX>640) CurX = 640;
+	if (CurY>480) CurY = 480;
+
+	SetRect(&DestRect, 223, 186, 223+193, 186+107);
+	SetRect(&rOK, 223+55,186+69,223+55+85,186+69+33);
+	
+	pDDBackBuffer->Blt(NULL, pDDOffscreen, NULL, DDBLT_WAIT, NULL);
+	pDDBackBuffer->Blt(&DestRect, pDDError, NULL, DDBLT_WAIT, NULL);
+
+	if (PtInRect(&rOK, pCursor))
+		if (bLMB)
+		{
+			if (!bLMBOld) bOKP=TRUE;
+			if (bOKP) pDDBackBuffer->Blt(&rOK, pDDErrorOKP, NULL, DDBLT_WAIT, NULL);
+		}
+		else pDDBackBuffer->Blt(&rOK, pDDErrorOKHover, NULL, DDBLT_WAIT, NULL);
+	if (PtInRect(&rOK,pCursor)&&bOKPOld&&(!bLMB)) State=NEW_GAME;
+
+	SetRect(&DestRect, CurX, CurY, CurX + 32, CurY + 32);
+	pDDBackBuffer->Blt(&DestRect, pDDCursor, NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
+	pDDPrimary->Flip(NULL, DDFLIP_WAIT);
+	bLMBOld=bLMB;
+	bOKPOld=bOKP;
 	return TRUE;
 }
 
 int UpdateGame(HWND hwnd)
 {
+	if (Music!=3)
+		if (SUCCEEDED(pimexMusic->GetEvent(&evCode, &evParam1, &evParam2, 0)))
+		{
+			pimexMusic->FreeEventParams(evCode, evParam1, evParam2);
+			if ((EC_COMPLETE == evCode) || (EC_USERABORT == evCode))
+			{
+				pimcMusic->Stop();
+				if (Music==1)
+				{
+					Music=2;
+					PlayMusic("data\\music\\rock.mp3");
+				}
+				else if (Music==2)
+				{
+					Music=1;
+					PlayMusic("data\\music\\cello.mp3");
+				}
+			}
+		}
+
 	switch (State)
 	{
 		case GAME_ACTIVE:
@@ -2583,6 +3116,18 @@ int UpdateGame(HWND hwnd)
 			break;
 		case NEW_GAME:
 			if (!UpdateStartMenu(hwnd)) return 0;
+			break;
+		case NEW_CUSTOM_GAME:
+			if (!UpdateStartCustom(hwnd)) return 0;
+			break;
+		case MENU_OPTIONS:
+			if (!UpdateOptions(126,123)) return 0;
+			break;
+		case GAME_OPTIONS:
+			if (!UpdateOptions(206,183)) return 0;
+			break;
+		case NEW_GAME_ERROR:
+			if (!UpdateNewGameError()) return 0;
 			break;
 	}
 	return 1;
