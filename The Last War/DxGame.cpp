@@ -1,6 +1,6 @@
 /*----------------------------------------------
   DxGame.cpp - "The Last War" main source file
-		(c) 1999 Vlad Bologa
+		(c) 1999, 2000 Vlad Bologa
 ------------------------------------------------*/
 
 #include "stdafx.h"
@@ -454,9 +454,9 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 	switch (iMsg)
 	{
 	case WM_CREATE:
-		if (!BeginGame(hwnd))
-			PostQuitMessage(0);
-		//PlayFile("c:\\GameArt\\Mini-Intro.avi", hwnd);
+		/*if (!BeginGame(hwnd))
+			PostQuitMessage(0);*/
+		PlayFile("c:\\GameArt\\Mini-Intro.avi", hwnd);
 		return 0;
 
 	case WM_GRAPHNOTIFY:
