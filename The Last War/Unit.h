@@ -32,8 +32,8 @@ public:
 	void SetPosition(int iPosX, int iPosY){ PosX=iPosX; PosY=iPosY; };
 	void Select(BOOL b) {IsSelected=b;};
 	BOOL Selected() {return IsSelected;};
-	virtual int Update();
-	//CUnit *next,*prev;
+	virtual int Update()=0;
+	CUnit *next,*prev;
 	CUnit();
 	virtual ~CUnit();
 

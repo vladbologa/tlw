@@ -143,7 +143,7 @@ class GameEngine
 	BOOL fLMBPressed, oldLMBPressed;
 	int UnitCount;
 
-	//CUnitPlane *Unit, *first, *temp;
+	CUnit *Unit, *first, *temp;
 public:
 	void GetMouseCoords(int &x, int &y);
 	void ShowMouse();
@@ -156,7 +156,7 @@ public:
 
 BOOL GameEngine::Update(int Reserved)
 {
-	/*HDC hdc;
+	HDC hdc;
 	int m_x, m_y;
 	static HPEN hPen=CreatePen(PS_SOLID, 1, RGB(20,200,40));
 	static int add=0;
@@ -423,7 +423,7 @@ BOOL GameEngine::Update(int Reserved)
 			}
 		}
 		while (change);
-	}*/
+	}
 	return TRUE;
 }
 
@@ -453,7 +453,7 @@ void GameEngine::CorrectCoords()
 
 GameEngine::Load(int Level, int Reserved)
 {
-	/*CBmp dBar, CCenter, Pyramid, lball[4], select, Sprite;
+	CBmp dBar, CCenter, Pyramid, lball[4], select, Sprite;
 	HDC hdc;
 	
 	CurentX = CurentY = 0;
@@ -513,7 +513,7 @@ GameEngine::Load(int Level, int Reserved)
 		pDDSprite120x90[i]->GetDC(&hdc);
 		if (FAILED(Sprite.Draw(hdc))) return FALSE;
 		pDDSprite120x90[i]->ReleaseDC(hdc);
-	}*/
+	}
 
 	return TRUE;
 }

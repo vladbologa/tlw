@@ -14,6 +14,7 @@
 class CUnitPlane : public CUnit  
 {
 public:
+	int Update();
 	CUnitPlane();
 	virtual ~CUnitPlane();
 
