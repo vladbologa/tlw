@@ -20,8 +20,10 @@ class CUnit
 	int TurnDestFrame;
 	BOOL IsTurning;
 	BOOL IsSelected;
+	int modxold, modyold;
+	int odd;
+
 public:
-	CBmp SpriteArray[33];
 	int GetCurrentFrame() { return CurrentFrame; };
 	int GetX(){ return PosX; };
 	int GetY(){ return PosY; };
@@ -30,6 +32,7 @@ public:
 	void Select(BOOL b) {IsSelected=b;};
 	BOOL Selected() {return IsSelected;};
 	int Update();
+	CUnit *next;
 	CUnit();
 	virtual ~CUnit();
 

@@ -10,20 +10,12 @@
 //////////////////////////////////////////////////////////////////////
 CUnit::CUnit()
 {
-	SpriteArray[0].Load("C:\\GameArt\\Units\\Plane\\plane0.bmp");
-	for (int i = 1; i <=32; i++)
-	{
-		char buffer[256];
-		sprintf(buffer, "C:\\GameArt\\Units\\Plane\\plane%d.bmp", i);
-		SpriteArray[i].Load(buffer);
-	}
 	CurrentFrame=0;
+	modxold=modyold=odd=0;
 }
 
 int CUnit::Update()
 {
-	static int modxold=0, modyold=0;
-	static int odd=0;
 	int modx=0, mody=0;
 
 	if (odd==0) odd=1; else odd=0;
