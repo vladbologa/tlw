@@ -84,7 +84,7 @@ LPDIRECTDRAWCLIPPER pDDClipper = NULL;
 LPDIRECTDRAWSURFACE7 pDDCursor = NULL;
 LPDIRECTDRAWSURFACE7 pDDOffscreen = NULL;
 LPDIRECTDRAWSURFACE7 pDDOffscreen2 = NULL;
-LPDIRECTDRAWSURFACE7 pDDRightBar = NULL;
+LPDIRECTDRAWSURFACE7 pDDPanel = NULL;
 LPDIRECTDRAWSURFACE7 pDDTile[MAX_TILES];
 LPDIRECTDRAWSURFACE7 pDDMenuBegin, pDDMenuOpt;
 LPDIRECTDRAWSURFACE7 pDDSprite120x90 = NULL;
@@ -141,8 +141,7 @@ class GameEngine
 	BOOL LeftButtonPressed, RightButtonPressed;
 	BOOL IsSelecting;
 	CMap Map;
-	CBmp TerrainType[256];
-	CBmp rBar;
+	CBmp dBar, TerrainType[256];
 	BOOL fLMBPressed, oldLMBPressed;
 
 	CUnit plane[PLANESM];
@@ -254,13 +253,6 @@ BOOL GameEngine::Update(int Reserved)
 		pDDBackBuffer->Blt(&DestRect, pDDSprite120x90, NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
 	}
 
-	RECT DestRect;
-	SetRect(&DestRect, 488, 0, 640, 480);
-	HRESULT hr;
-	hr = pDDBackBuffer->Blt(&DestRect, pDDRightBar, NULL, DDBLT_WAIT, NULL);
-	if (hr!=DDERR_INVALIDRECT) return FALSE;
-
-	ShowMouse();
 	if (IsSelecting)
 	{
 		pDDBackBuffer->GetDC(&hdc);
@@ -269,6 +261,14 @@ BOOL GameEngine::Update(int Reserved)
 		Rectangle(hdc,fmouse_x, fmouse_y, mouse_x, mouse_y);
 		pDDBackBuffer->ReleaseDC(hdc);
 	}
+	
+	RECT DestRect;
+	SetRect(&DestRect,0, 480-125, 640,480);
+	HRESULT hr;
+	hr = pDDBackBuffer->Blt(&DestRect, pDDPanel, NULL, DDBLT_WAIT, NULL);
+	if (hr!=DD_OK) return FALSE;
+	
+	ShowMouse();
 	if (!IsSelecting)
 	{
 		fmouse_x=mouse_x;
@@ -308,7 +308,7 @@ void GameEngine::CorrectCoords()
 	if (CurentX < 0) CurentX = 0;
 	if (CurentX > (Map.GetSizeX() * 80 - 640)) CurentX = Map.GetSizeX() * 80 - 640;
 	if (CurentY < 0) CurentY = 0;
-	if (CurentY > (Map.GetSizeY() * 80 - 480)) CurentY = Map.GetSizeY() * 80 - 480;
+	if (CurentY > (Map.GetSizeY() * 80 - 480+125)) CurentY = Map.GetSizeY() * 80 - 480+125;
 }
 
 GameEngine::GameEngine()
@@ -345,13 +345,13 @@ void GameEngine::LoadTerrainTiles(int tileset)
 	TerrainType[7].Load("c:\\GameArt\\Tiles\\treer3.bmp");
 	TerrainType[8].Load("c:\\GameArt\\Tiles\\treer4.bmp");
 
-	rBar.Load("c:\\GameArt\\rbar.bmp");
+	dBar.Load("c:\\GameArt\\dbar.bmp");
 
 	HDC hdc;
 
-	pDDRightBar->GetDC(&hdc);
-	rBar.Draw(hdc);
-	pDDRightBar->ReleaseDC(hdc);
+	pDDPanel->GetDC(&hdc);
+	dBar.Draw(hdc);
+	pDDPanel->ReleaseDC(hdc);
 
 	for (int i = 0; i < 9; i++)
 	{
@@ -417,7 +417,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 	 CoInitialize(NULL);
 	 hr=DirectInputCreate(hInstance,DIRECTINPUT_VERSION,&pDI,NULL);
-	 SetRect(&ScreenSize, 0, 0, 488, 480);
+	 SetRect(&ScreenSize, 0, 0, 640, 480-125);
 
 	 wndclass.cbSize        = sizeof (wndclass);
      wndclass.style         = CS_HREDRAW | CS_VREDRAW;
@@ -470,9 +470,9 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 	switch (iMsg)
 	{
 	case WM_CREATE:
-		if (!BeginGame(hwnd))
-			PostQuitMessage(0);
-		//PlayFile("c:\\GameArt\\Mini-Intro.avi", hwnd);
+		/*if (!BeginGame(hwnd))
+			PostQuitMessage(0);*/
+		PlayFile("c:\\GameArt\\Mini-Intro.avi", hwnd);
 		return 0;
 
 	case WM_GRAPHNOTIFY:
@@ -792,10 +792,10 @@ BOOL DirectDrawInit(HWND hwnd)
 		return FALSE;
 	}
 
-	Offscreen.dwWidth = 152;
-	Offscreen.dwHeight = 480;
+	Offscreen.dwWidth = 640;
+	Offscreen.dwHeight = 125;
 
-	hr = pDD7->CreateSurface(&Offscreen, &pDDRightBar, NULL);
+	hr = pDD7->CreateSurface(&Offscreen, &pDDPanel, NULL);
 	if (hr!=DD_OK)
 	{
 		MessageBox(hwnd, "Error while creating offscreen surfaces. Restart the computer and try again.", "Error", MB_ICONEXCLAMATION | MB_OK);
