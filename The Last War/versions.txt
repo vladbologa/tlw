@@ -1,6 +1,15 @@
 The Last War - Version History
 ------------------------------
 
+TLW 0.3 (jan. 2002):
+*finished main menu :)
+*changed menubar
+*structure classes
+
+TLW 0.2.5 (june 2001):
+*added structures
+*changed cursor
+
 TLW 0.2.4 (may 2001):
 *improved unit selection
 *rewrote lots of code (faster, better memory management)
@@ -13,7 +22,7 @@ TLW 0.2.3 (sept. 2K):
 TLW 0.2.2  (june 2K):
 *added menubar
 
-TLW 0.2.1 (nov 1999)
+TLW 0.2.1 (nov. 1999)
 *ported to DirectX 7
 *added more planes
 *unit selection
