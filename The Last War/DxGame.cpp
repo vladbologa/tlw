@@ -1,6 +1,6 @@
 /*----------------------------------------------
   DxGame.cpp - "The Last War" main source file
-		(c) 1999, 2000 Vlad Bologa
+		(c) 1999-2001 Vlad Bologa
 ------------------------------------------------*/
 
 #include "stdafx.h"
@@ -17,7 +17,7 @@
 #include <ddraw.h>
 #include <dinput.h>
 
-#define  VERSION "v0.2.3"
+#define  VERSION "v0.2.4b"
 
 #define KEYDOWN(name,key) (name[key] & 0x80)
 #define WM_GRAPHNOTIFY  WM_USER+13
@@ -309,20 +309,10 @@ BOOL GameEngine::Update(int Reserved)
 	{
 		plane=first;
 		
-		if (plane->Selected())
+		if (plane->Selected()&&UnitCount==1)
 		{
-			if (UnitCount==1)
-			{
-				delete first;
-				first=NULL;
-			}
-			else
-			{
-				first=plane->next;
-				first->prev=NULL;
-				delete plane;
-				plane=first;
-			}
+			delete first;
+			first=NULL;
 			UnitCount--;
 		}
 		if (UnitCount>0)
@@ -331,12 +321,22 @@ BOOL GameEngine::Update(int Reserved)
 			{
 				if (plane->Selected())
 				{
-					temp=plane;
-					plane=plane->prev;
-					plane->next=temp->next;
-					temp=plane->next;
-					delete temp->prev;
-					temp->prev=plane;
+					if (plane==first)
+					{
+						first=first->next;
+						first->prev=NULL;
+						delete plane;
+						plane=first;
+					}
+					else
+					{
+						temp=plane;
+						plane=plane->prev;
+						plane->next=temp->next;
+						temp=plane->next;
+						delete temp->prev;
+						temp->prev=plane;
+					}
 					UnitCount--;
 				}
 				plane=plane->next;
