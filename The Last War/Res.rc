@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,3,4,0
- PRODUCTVERSION 0,3,4,0
+ FILEVERSION 0,3,5,0
+ PRODUCTVERSION 0,3,5,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -47,7 +47,7 @@ BEGIN
             VALUE "Comments", "\0"
             VALUE "CompanyName", "Vlad Bologa & Emil Butiri\0"
             VALUE "FileDescription", "TLW Main executable\0"
-            VALUE "FileVersion", "0.3.4 beta\0"
+            VALUE "FileVersion", "0.3.5 beta\0"
             VALUE "InternalName", "TLW\0"
             VALUE "LegalCopyright", "Copyright © 1999-2002 Vlad Bologa & Emil Butiri\0"
             VALUE "LegalTrademarks", "\0"

@@ -1,7 +1,12 @@
 The Last War - Version History
 ------------------------------
 
-TLW 0.3.4 (under development)
+TLW 0.3.5 (under development)
+
+TLW 0.3.4 (feb. 2002)
+*improved unit overlapping issue
+*changed oil plant (perspective view & smaller)
+*brought back pyramid structure
 
 TLW 0.3.3 (jan. 2002)
 *tileset facelift (=>nicer graphics :P)

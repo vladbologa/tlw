@@ -13,7 +13,10 @@
 
 class CMisile : public CUnit  
 {
+	CUnit *target;
 public:
+	int Update();
+	int SetTarget(CUnit *t) {target=t;};
 	CMisile();
 	virtual ~CMisile();
 

@@ -18,3 +18,35 @@ CMisile::~CMisile()
 {
 
 }
+
+int CMisile::Update()
+{
+	if (target)
+	{
+		DestX=target->GetX();
+		DestY=target->GetY();
+		if (DestX!=PosX)
+		{
+			if (DestX>PosX)
+			{
+				PosX+=10;
+			}
+			if (DestX<PosX)
+			{
+				PosX-=10;
+			}
+		}
+		if (DestY!=PosY)
+		{
+			if (DestY>PosY) 
+			{
+				PosY+=10;
+			}
+			if (DestY<PosY) 
+			{
+				PosY-=10;
+			}
+		}
+	}
+	return 1;
+}

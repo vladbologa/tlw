@@ -15,6 +15,7 @@ class CStructPyramid : public CStructure
 {
 public:
 	int Update();
+	virtual int GetType() { return 3; };
 	CStructPyramid();
 	virtual ~CStructPyramid();
 

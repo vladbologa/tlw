@@ -30,6 +30,8 @@ public:
 	int GetCurrentFrame() { return CurrentFrame; };
 	int GetX(){ return PosX; };
 	int GetY(){ return PosY; };
+	int GetDestX() { return DestX; };
+	int GetDestY() { return DestY; };
 	void SetDestination(int iDestX, int iDestY){ DestX = iDestX; DestY = iDestY; };
 	void SetPosition(int iPosX, int iPosY){ PosX=iPosX; PosY=iPosY; };
 	void Select(BOOL b) {IsSelected=b;};

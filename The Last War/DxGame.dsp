@@ -104,8 +104,28 @@ SOURCE=.\Map.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\Misile.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\StdAfx.cpp
 # ADD CPP /Yc"stdafx.h"
+# End Source File
+# Begin Source File
+
+SOURCE=.\StruCCenter.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\StructOilPlant.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\Structure.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\StruPyramid.cpp
 # End Source File
 # Begin Source File
 
@@ -129,11 +149,31 @@ SOURCE=.\Map.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\Misile.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\resource.h
 # End Source File
 # Begin Source File
 
 SOURCE=.\StdAfx.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\StruCCenter.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\StructOilPlant.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\Structure.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\StruPyramid.h
 # End Source File
 # Begin Source File
 

@@ -8,7 +8,9 @@
 
 #include "map.h"
 #include "unitplane.h"
+#include "misile.h"
 #include "struccenter.h"
+#include "strupyramid.h"
 #include "structoilplant.h"
 
 #include <stdio.h>
@@ -18,7 +20,7 @@
 #include <ddraw.h>
 #include <dinput.h>
 
-#define  VERSION "v0.3.4b"
+#define  VERSION "v0.3.5b"
 
 #define KEYDOWN(name,key) (name[key] & 0x80)
 #define WM_GRAPHNOTIFY  WM_USER+13
@@ -98,15 +100,14 @@ LPDIRECTDRAWSURFACE7 pDDMenuBegin, pDDMenuOpt;
 LPDIRECTDRAWSURFACE7 pDDMenuSM, pDDSMCreate, pDDSMJoin;
 LPDIRECTDRAWSURFACE7 pDDMenuBeginTXT, pDDMenuBeginTXTSel, pDDMenuOptTXTSel, pDDMenuExitTXTSel;
 LPDIRECTDRAWSURFACE7 pDDSprite120x90[66];
-LPDIRECTDRAWSURFACE7 pDDSprite400x300;
-LPDIRECTDRAWSURFACE7 pDDSprite185x160;
-LPDIRECTDRAWSURFACE7 pDDSprite170x160;
-LPDIRECTDRAWSURFACE7 pDDUnitSelection;
+LPDIRECTDRAWSURFACE7 pDDSpriteOilPlant, pDDSprite185x160, pDDSprite170x160;
+LPDIRECTDRAWSURFACE7 pDDUnitSelection, pDDPyramid, pDDPyramidSelected, pDDPyramidMask;
 LPDIRECTDRAWSURFACE7 pDDCCenterSelected, pDDCCenterMask;
 LPDIRECTDRAWSURFACE7 pDDOilPlantSelected, pDDOilPlantMask;
 LPDIRECTDRAWSURFACE7 pDDMenuButtonPressed, pDDMenuButtonOver;
 LPDIRECTDRAWSURFACE7 pDDPlaneButton, pDDPlaneButtonPressed;
 LPDIRECTDRAWSURFACE7 pDDF15Button, pDDF15ButtonPressed;
+LPDIRECTDRAWSURFACE7 pDDMisile;
 
 //Function prototypes
 LRESULT CALLBACK WndProc (HWND, UINT, WPARAM, LPARAM);
@@ -166,11 +167,12 @@ class GameEngine
 	BOOL fLMBPressed, oldLMBPressed, oldRMBPressed;
 	BOOL MenuButtonPressed, PlaneButtonPressed, PlaneButtonPressedOld, bF15BtnP, bF15BtnPOld;
 	CMap Map;
-	int UnitCount;
+	int UnitCount, SelectedCount;
 	int StructSelType;
 	
 	CUnit *Unit, *first, *temp;
-	CStructure *Struct, *sfirst;
+	CStructure *Struct, *sfirst, *stemp;
+	CMisile Misile;
 public:
 	void GetMouseCoords(int &x, int &y);
 	void ShowMouse();
@@ -271,8 +273,12 @@ BOOL GameEngine::Update(int Reserved)
 				r_Structure.right=pt.x+185;
 				break;
 			case 2:
-				r_Structure.bottom=pt.y+300;
-				r_Structure.right=pt.x+400;
+				r_Structure.bottom=pt.y+212;
+				r_Structure.right=pt.x+295;
+				break;
+			case 3:
+				r_Structure.bottom=pt.y+160;
+				r_Structure.right=pt.x+180;
 				break;
 			}
 						
@@ -294,7 +300,8 @@ BOOL GameEngine::Update(int Reserved)
 			}
 			Struct=Struct->next;
 		}
-
+		
+		SelectedCount=iNrSel;
 		IsSelecting=FALSE;
 		WaitSelection=FALSE;
 	}
@@ -366,8 +373,12 @@ BOOL GameEngine::Update(int Reserved)
 				r_Structure.right=r_Structure.left + 185;
 				break;
 			case 2:
-				r_Structure.bottom=r_Structure.top + 300;
-				r_Structure.right=r_Structure.left + 400;
+				r_Structure.bottom=r_Structure.top + 212;
+				r_Structure.right=r_Structure.left + 295;
+				break;
+			case 3:
+				r_Structure.bottom=r_Structure.top + 160;
+				r_Structure.right=r_Structure.left + 180;
 				break;
 			}
 
@@ -401,6 +412,16 @@ BOOL GameEngine::Update(int Reserved)
 							pDDOilPlantMask->Unlock(NULL);
 					}
 					break;
+				case 3:
+					if (pDDPyramidMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+					{
+						PBYTE mem=(PBYTE) sDesc.lpSurface;
+						poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+						if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
+							pDDPyramidMask->Unlock(NULL);
+					}
+					break;
 				}
 			}
 
@@ -419,6 +440,7 @@ BOOL GameEngine::Update(int Reserved)
 			Struct=Struct->next;
 		}
 
+		SelectedCount=iNrSel;
 		WaitSelection=FALSE;
 	}
 
@@ -444,17 +466,110 @@ BOOL GameEngine::Update(int Reserved)
 			else pDDBackBuffer->Blt(&DestRect, pDDSprite185x160, NULL, DDBLT_WAIT, NULL);
 			break;
 		case 2:
-			SetRect(&DestRect, Struct->GetX()-CurentX, Struct->GetY()-CurentY, Struct->GetX()+400-CurentX, Struct->GetY()+300-CurentY);
+			SetRect(&DestRect, Struct->GetX()-CurentX, Struct->GetY()-CurentY, Struct->GetX()+295-CurentX, Struct->GetY()+212-CurentY);
 			if (Struct->Selected()) pDDBackBuffer->Blt(&DestRect, pDDOilPlantSelected, NULL, DDBLT_WAIT, NULL);
-			else pDDBackBuffer->Blt(&DestRect, pDDSprite400x300, NULL, DDBLT_WAIT, NULL);
+			else pDDBackBuffer->Blt(&DestRect, pDDSpriteOilPlant, NULL, DDBLT_WAIT, NULL);
+			break;
+		case 3:
+			SetRect(&DestRect, Struct->GetX()-CurentX, Struct->GetY()-CurentY, Struct->GetX()+180-CurentX, Struct->GetY()+160-CurentY);
+			if (Struct->Selected()) pDDBackBuffer->Blt(&DestRect, pDDPyramidSelected, NULL, DDBLT_WAIT, NULL);
+			else pDDBackBuffer->Blt(&DestRect, pDDPyramid, NULL, DDBLT_WAIT, NULL);
+
 		}
 		Struct=Struct->next;
 	}
 
+	/*if (first) Misile.SetTarget(first);
+	Misile.Update();
+	SetRect(&DestRect, Misile.GetX()-CurentX, Misile.GetY()-CurentY,40+Misile.GetX()-CurentX, 40+Misile.GetY()-CurentY) ;
+	pDDBackBuffer->Blt(&DestRect, pDDMisile, NULL, DDBLT_WAIT|DDBLT_KEYSRC, NULL);*/
+
+	int vx,vy,c=0,row=1,p;
+	int tx = 0,ty = 0;
+		
 	Unit=first;
 	while (Unit)
 	{
-		if (!RightButtonPressed&&oldRMBPressed&&Unit->Selected()&&!bMouseOnPanel) Unit->SetDestination(CurentX+m_x-60+rand()%10, CurentY+m_y-45+rand()%10);
+		if (!RightButtonPressed&&oldRMBPressed&&Unit->Selected()&&!bMouseOnPanel) 
+		{
+			tx+=(CurentX+m_x-60-Unit->GetX());
+			ty+=(CurentY+m_y-45-Unit->GetY());
+		}
+		Unit=Unit->next;
+	}
+	
+	Unit=first;
+	while (Unit)
+	{
+		if (!RightButtonPressed&&oldRMBPressed&&Unit->Selected()&&!bMouseOnPanel) 
+		{
+			c++;
+			if (SelectedCount%2)
+			{
+				if (c<=SelectedCount/2)
+				{
+					p=((SelectedCount-1)/2)-c+1;
+					vx=(-20)*p;
+					vy=(-20)*p;
+				}
+				else if (c>(SelectedCount/2)+1)
+				{
+					p=c-((SelectedCount-1)/2)-1;
+					vx=(-20)*p;
+					vy=20*p;
+				}
+				else
+				{
+					vx=vy=0;
+				}
+			}
+			else
+			{
+				if (c<SelectedCount/2)
+				{
+					p=((SelectedCount-1)/2)-c+1;
+					vx=(-20)*p;
+					vy=(-20)*p;
+				}
+				else if (c>(SelectedCount/2)+1)
+				{
+					p=c-((SelectedCount-1)/2)-1;
+					vx=(-20)*(p-1);
+					vy=20*p;
+				}
+				else
+				{
+					if (c==SelectedCount/2) vx=vy=0;
+					else
+					{
+						vx=0;
+						vy=20;
+					}
+				}
+
+			}
+
+			if ((tx>0)&&(ty>0))
+			{
+				if (tx>ty) Unit->SetDestination(CurentX+m_x-60+vx, CurentY+m_y-45+vy);
+				else Unit->SetDestination(CurentX+m_x-60+vy, CurentY+m_y-45+vx);
+			}
+			else if ((tx<0)&&(ty>0))
+			{
+				if (ty>-tx) Unit->SetDestination(CurentX+m_x-60+vy, CurentY+m_y-45+vx);
+				else Unit->SetDestination(CurentX+m_x-60-vx, CurentY+m_y-45+vy);
+			}
+			else if ((tx<0)&&(ty<0))
+			{
+				if (tx<ty) Unit->SetDestination(CurentX+m_x-60-vx, CurentY+m_y-45+vy);
+				else Unit->SetDestination(CurentX+m_x-60+vy, CurentY+m_y-45-vx);
+			}
+			else if ((tx>0)&&(ty<0))
+			{
+				if (-ty>tx) Unit->SetDestination(CurentX+m_x-60+vy, CurentY+m_y-45-vx);
+				else Unit->SetDestination(CurentX+m_x-60+vx, CurentY+m_y-45+vy);
+			}
+		}
 		Unit->Update();
 		SetRect(&DestRect, Unit->GetX()-CurentX, Unit->GetY()-CurentY, Unit->GetX()+120-CurentX, Unit->GetY()+90-CurentY);
 		if (Unit->Selected())
@@ -553,8 +668,9 @@ BOOL GameEngine::Update(int Reserved)
 	SetTextAlign(hdc, TA_BOTTOM | TA_RIGHT);
 	SetBkMode(hdc, TRANSPARENT);
 	SetTextColor(hdc, RGB(255,255,255));
-	if (bMouseOnPanel) TextOut(hdc, 800, 600, "OnPanel", 7);
-	else TextOut(hdc, 800, 600, "NotOnPanel", 10);
+	char _itoa_t[10];
+	_itoa(SelectedCount, _itoa_t,10);
+	TextOut(hdc, 800, 600, _itoa_t, strlen(_itoa_t));
 	pDDBackBuffer->ReleaseDC(hdc);*/
 
 	ShowMouse();
@@ -768,15 +884,20 @@ GameEngine::Load(int Level, int Reserved)
 
 	Map.Load(Level);
 	LoadTerrainTiles();	
+	Misile.SetPosition(0,0);
 
 	Struct=(CStructCCenter *) new CStructCCenter;
 	Struct->SetPosition(160,160);
 	Struct->prev=NULL;
 	sfirst=Struct;
 	Struct=(CStructOilPlant *) new CStructOilPlant;
-	Struct->SetPosition(400,0);
+	Struct->SetPosition(400,160);
 	sfirst->next=Struct;
-	Struct->next=NULL;
+	stemp=(CStructPyramid *) new CStructPyramid;
+	Struct->next=stemp;
+	stemp->SetPosition(1440,800);
+	stemp->prev=Struct;
+	stemp->next=NULL;
 		
 	bmp.Load("data\\interface\\mb01.bmp");
 	pDDMenuButtonPressed->GetDC(&hdc);
@@ -849,9 +970,9 @@ GameEngine::Load(int Level, int Reserved)
 	pDDCCenterMask->ReleaseDC(hdc);
 
 	bmp.Load("data\\structures\\oilplant.bmp");
-	pDDSprite400x300->GetDC(&hdc);
+	pDDSpriteOilPlant->GetDC(&hdc);
 	bmp.Draw(hdc);
-	pDDSprite400x300->ReleaseDC(hdc);
+	pDDSpriteOilPlant->ReleaseDC(hdc);
 
 	bmp.Load("data\\structures\\oilplantsel.bmp");
 	pDDOilPlantSelected->GetDC(&hdc);
@@ -862,6 +983,26 @@ GameEngine::Load(int Level, int Reserved)
 	pDDOilPlantMask->GetDC(&hdc);
 	bmp.Draw(hdc);
 	pDDOilPlantMask->ReleaseDC(hdc);
+
+	bmp.Load("data\\structures\\pyramid.bmp");
+	pDDPyramid->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDPyramid->ReleaseDC(hdc);
+
+	bmp.Load("data\\structures\\pyramidsel.bmp");
+	pDDPyramidSelected->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDPyramidSelected->ReleaseDC(hdc);
+
+	bmp.Load("data\\structures\\pyramidcont.bmp");
+	pDDPyramidMask->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDPyramidMask->ReleaseDC(hdc);
+
+	bmp.Load("data\\units\\misile.bmp");
+	pDDMisile->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDMisile->ReleaseDC(hdc);
 
 	for (i=0; i<=32; i++)
 	{
@@ -1314,11 +1455,22 @@ BOOL CreateGameOffscreenSurfaces()
 	pDD7->CreateSurface(&Offscreen, &pDDF15Button, NULL);
 	pDD7->CreateSurface(&Offscreen, &pDDF15ButtonPressed,NULL);
 
-	Offscreen.dwWidth = 400;
-	Offscreen.dwHeight = 300;
-	pDD7->CreateSurface(&Offscreen, &pDDSprite400x300, NULL);
+	Offscreen.dwWidth = 295;
+	Offscreen.dwHeight = 212;
+	pDD7->CreateSurface(&Offscreen, &pDDSpriteOilPlant, NULL);
 	pDD7->CreateSurface(&Offscreen, &pDDOilPlantSelected, NULL);
 	pDD7->CreateSurface(&Offscreen, &pDDOilPlantMask, NULL);
+
+	Offscreen.dwWidth = 180;
+	Offscreen.dwHeight = 160;
+	pDD7->CreateSurface(&Offscreen, &pDDPyramid, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDPyramidSelected, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDPyramidMask, NULL);
+	
+	Offscreen.dwWidth = 40;
+	Offscreen.dwHeight = 40;
+	pDD7->CreateSurface(&Offscreen, &pDDMisile, NULL);
+	pDDMisile->SetColorKey(DDCKEY_SRCBLT, &key);
 
 	return TRUE;
 }
@@ -1327,9 +1479,13 @@ void DirectDrawUnInit(int iType)
 {
 	if (iType==UNINIT_GAME)
 	{
+		RELEASE(pDDMisile);
+		RELEASE(pDDPyramidMask);
+		RELEASE(pDDPyramidSelected);
+		RELEASE(pDDPyramid);
 		RELEASE(pDDOilPlantMask);
 		RELEASE(pDDOilPlantSelected);
-		RELEASE(pDDSprite400x300);
+		RELEASE(pDDSpriteOilPlant);
 		RELEASE(pDDF15ButtonPressed);
 		RELEASE(pDDF15Button);
 		RELEASE(pDDPlaneButtonPressed);
@@ -1560,7 +1716,6 @@ BOOL StartGame(HWND hwnd)
 
 	Loading(LBT_BLACK, LM_STATIC);
 	LoadMenuFiles();
-
 	//PlayFile("C:\\MP3\\Rock\\Other\\Apocalyptica - Hope.mp3", hwnd);
 	//PlayFile("C:\\MP3\\Rock\\Manowar\\1996 Louder than Hell\\LTHELL08.MP3", hwnd);
 	while (UpdateGame(hwnd));

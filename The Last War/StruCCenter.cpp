@@ -21,5 +21,5 @@ CStructCCenter::~CStructCCenter()
 
 int CStructCCenter::Update()
 {
-	return 0;
+	return 1;
 }
