@@ -1,7 +1,11 @@
 The Last War - Version History
 ------------------------------
 
-TLW 0.6.1 (under development)
+TLW 0.6.2 (under development)
+
+TLW 0.6.1 (may 2002)
+*exit game confirm dialog
+*edited rock track
 
 TLW 0.6 (may 2002)
 *interface complete!
