@@ -26,7 +26,7 @@ void CMap::Load(int level)
 
 	FILE *in; 
 
-	in = fopen("c:\\GameArt\\level3.lwm", "rb");
+	in = fopen("data\\Maps\\level3.lwm", "rb");
 
 	for (int i = 0; i < SizeX; i++)
 		for (int j = 0; j < SizeY; j++)

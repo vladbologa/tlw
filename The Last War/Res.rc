@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,2,5,0
- PRODUCTVERSION 0,2,5,0
+ FILEVERSION 0,3,1,0
+ PRODUCTVERSION 0,3,1,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -47,14 +47,14 @@ BEGIN
             VALUE "Comments", "\0"
             VALUE "CompanyName", "Vlad Bologa & Emil Butiri\0"
             VALUE "FileDescription", "TLW Main executable\0"
-            VALUE "FileVersion", "0.2.5\0"
+            VALUE "FileVersion", "0.3.1 beta\0"
             VALUE "InternalName", "TLW\0"
-            VALUE "LegalCopyright", "Copyright © 1999-2001 Vlad Bologa & Emil Butiri\0"
+            VALUE "LegalCopyright", "Copyright © 1999-2002 Vlad Bologa & Emil Butiri\0"
             VALUE "LegalTrademarks", "\0"
             VALUE "OriginalFilename", "DxGame.exe\0"
             VALUE "PrivateBuild", "\0"
             VALUE "ProductName", "The Last War\0"
-            VALUE "ProductVersion", "0.2\0"
+            VALUE "ProductVersion", "0.3\0"
             VALUE "SpecialBuild", "\0"
         END
     END
