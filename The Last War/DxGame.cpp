@@ -279,7 +279,7 @@ BOOL GameEngine::Update(int Reserved)
 	{
 		if (!add)
 		{
-			if (UnitCount==0)
+			if (!first)
 			{
 					first=(CUnit *) new CUnit;
 					first->SetPosition(320,200);
@@ -308,56 +308,51 @@ BOOL GameEngine::Update(int Reserved)
 
 	if (KEYDOWN(buffer, DIK_DELETE))
 	{
-		plane=first;
-		
-		if (plane->Selected()&&UnitCount==1)
+		int change=0;
+		do
 		{
-			delete first;
-			first=NULL;
-			UnitCount--;
-		}
-		if (UnitCount>0)
-		{
-			while (plane->next)
+			plane=first;
+			change=0;
+			if (first->Selected()&&(!first->next))
 			{
-				if (plane->Selected())
-				{
-					if (plane==first)
-					{
-						first=first->next;
-						first->prev=NULL;
-						delete plane;
-						plane=first;
-					}
-					else
-					{
-						temp=plane;
-						plane=plane->prev;
-						plane->next=temp->next;
-						temp=plane->next;
-						delete temp->prev;
-						temp->prev=plane;
-					}
-					UnitCount--;
-				}
-				plane=plane->next;
+				delete plane;
+				first=NULL;
+				change=1;
 			}
-			if (plane->Selected())
+			else if (first->Selected())
 			{
-				if (UnitCount==1)
+				plane=plane->next;
+				plane->prev=NULL;
+				delete first;
+				first=plane;
+				change=1;
+			}
+			else
+			{
+				while ((plane->next)&&(!plane->Selected())) plane=plane->next;
+				if (plane->next)
 				{
-					delete first;
-					first=NULL;
+					temp=plane;
+					plane=plane->prev;
+					plane->next=temp->next;
+					delete temp;
+					temp=plane;
+					plane=plane->next;
+					plane->prev=temp;
+					change=1;
 				}
-				else
+				else if (plane->Selected())
 				{
 					temp=plane->prev;
 					temp->next=NULL;
 					delete plane;
+					plane=NULL;
+					change=1;
 				}
-				UnitCount--;
 			}
+			if (change) UnitCount--;
 		}
+		while (change);
 	}
 	return TRUE;
 }
