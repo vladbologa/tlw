@@ -25,8 +25,8 @@ public:
 	int GetCurrentFrame() { return CurrentFrame; };
 	int GetX(){ return PosX; };
 	int GetY(){ return PosY; };
-	int SetDestination(int iDestX, int iDestY){ DestX = iDestX; DestY = iDestY; };
-	int SetPosition(int iPosX, int iPosY){ PosX=iPosX; PosY=iPosY; };
+	void SetDestination(int iDestX, int iDestY){ DestX = iDestX; DestY = iDestY; };
+	void SetPosition(int iPosX, int iPosY){ PosX=iPosX; PosY=iPosY; };
 	void Select(BOOL b) {IsSelected=b;};
 	BOOL Selected() {return IsSelected;};
 	int Update();
