@@ -13,12 +13,12 @@
 
 class CMap  
 {
+	BYTE SizeX, SizeY;
 public:
-	int GetSizeY(){return SizeX;};
-	int GetSizeX(){return SizeY;};
-	BYTE GetTerrainType(int i, int j);
+	BYTE GetSizeY(){return SizeY;};
+	BYTE GetSizeX(){return SizeX;};
+	BYTE GetTerrainType(BYTE i, BYTE j);
 	
-	int SizeX, SizeY;
 	BYTE Terrain[256][256];
 	BOOL Load(char *filename);
 	void Load(int level);

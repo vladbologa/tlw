@@ -18,6 +18,7 @@ class CStructCCenter : public CStructure
 public:
 	int Update();
 	CStructCCenter();
+	virtual int GetType() { return 1;};
 	virtual ~CStructCCenter();
 
 };

@@ -20,6 +20,7 @@ protected:
 	BOOL IsSelected;
 
 public:
+	virtual int GetType()=0;
 	int Damage;
 	int GetX(){ return PosX; };
 	int GetY(){ return PosY; };
