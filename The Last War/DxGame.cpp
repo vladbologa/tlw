@@ -246,15 +246,6 @@ BOOL GameEngine::Update(int Reserved)
 	hr = pDDBackBuffer->Blt(&DestRect, pDDPanel, NULL, DDBLT_WAIT, NULL);
 	if (hr!=DD_OK) return FALSE;
 	
-	ShowMouse();
-	if (!IsSelecting)
-	{
-		fmouse_x=mouse_x;
-		fmouse_y=mouse_y;
-		fLMBPressed=oldLMBPressed;
-	}
-	oldLMBPressed=LeftButtonPressed;
-
 	hr = pDDBackBuffer->GetDC(&hdc);
 	//if (FAILED(hr)) PostQuitMessage(0);
 	SetTextAlign(hdc, TA_BOTTOM | TA_RIGHT);
@@ -265,6 +256,16 @@ BOOL GameEngine::Update(int Reserved)
 	TextOut(hdc, 640, 480, _itoa_t, strlen(_itoa_t));
 	hr = pDDBackBuffer->ReleaseDC(hdc);
 	//if (FAILED(hr)) PostQuitMessage(0);
+
+	ShowMouse();
+	if (!IsSelecting)
+	{
+		fmouse_x=mouse_x;
+		fmouse_y=mouse_y;
+		fLMBPressed=oldLMBPressed;
+	}
+	oldLMBPressed=LeftButtonPressed;
+
 
 	pDDPrimary->Flip(NULL, DDFLIP_WAIT);
 	
