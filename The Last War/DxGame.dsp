@@ -117,6 +117,10 @@ SOURCE=.\StruCCenter.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\StructAirport.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\StructOilPlant.cpp
 # End Source File
 # Begin Source File
@@ -162,6 +166,10 @@ SOURCE=.\StdAfx.h
 # Begin Source File
 
 SOURCE=.\StruCCenter.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\StructAirport.h
 # End Source File
 # Begin Source File
 

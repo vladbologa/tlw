@@ -14,9 +14,10 @@
 class CStructOilPlant : public CStructure  
 {
 public:
+	virtual void SetPosition(int iPosX, int iPosY, CMap *Map);
 	int Update();
 	CStructOilPlant();
-	virtual int GetType() {return 2; };
+	virtual int GetType() {return 2;}
 	virtual ~CStructOilPlant();
 
 };

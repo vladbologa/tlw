@@ -14,12 +14,15 @@
 class CMap  
 {
 	BYTE SizeX, SizeY;
+	BYTE Free[256][256];
+	BYTE Terrain[128][128];
 public:
-	BYTE GetSizeY(){return SizeY;};
-	BYTE GetSizeX(){return SizeX;};
+	BYTE GetSizeY(){return SizeY;}
+	BYTE GetSizeX(){return SizeX;}
 	BYTE GetTerrainType(BYTE i, BYTE j);
-	
-	BYTE Terrain[256][256];
+	void Hold(int i, int j) {Free[i][j]=0;}
+	void Release(int i, int j) {Free[i][j]=1;}
+	BOOL Available(BYTE i, BYTE j);
 	BOOL Load(char *filename);
 	void Load(int level);
 	CMap();

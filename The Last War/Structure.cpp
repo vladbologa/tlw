@@ -11,10 +11,10 @@
 
 CStructure::CStructure()
 {
-	Damage=0;	
+	iLife=100;
+	bIsSelected=bIsAttacked=FALSE;
 }
 
 CStructure::~CStructure()
 {
-	Damage=0;
 }

@@ -14,8 +14,9 @@
 class CStructPyramid : public CStructure  
 {
 public:
+	virtual void SetPosition(int iPosX, int iPosY, CMap *Map);
 	int Update();
-	virtual int GetType() { return 3; };
+	virtual int GetType() { return 3;}
 	CStructPyramid();
 	virtual ~CStructPyramid();
 

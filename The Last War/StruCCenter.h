@@ -14,9 +14,10 @@
 class CStructCCenter : public CStructure  
 {	
 public:
+	virtual void SetPosition(int iPosX, int iPosY, CMap *Map);
 	int Update();
 	CStructCCenter();
-	virtual int GetType() { return 1;};
+	virtual int GetType() { return 1;}
 	virtual ~CStructCCenter();
 
 };

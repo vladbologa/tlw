@@ -10,23 +10,27 @@
 #endif // _MSC_VER > 1000
 
 #include "bmp.h"
+#include "map.h"
 
 class CStructure
 {
 protected:
 	int PosX, PosY;
 	int DestX, DestY;
-	BOOL IsSelected;
+	int iLife;
+	BOOL bIsSelected, bIsAttacked;
 
 public:
 	virtual int GetType()=0;
-	int Damage;
+	void Damage(int iDamage) { iLife-=iDamage; };
 	int GetX(){ return PosX; };
 	int GetY(){ return PosY; };
 	void SetDestination(int iDestX, int iDestY){ DestX = iDestX; DestY = iDestY; };
-	void SetPosition(int iPosX, int iPosY){ PosX=iPosX; PosY=iPosY; };
-	void Select(BOOL b) {IsSelected=b;};
-	BOOL Selected() {return IsSelected;};
+	virtual void SetPosition(int iPosX, int iPosY, CMap *Map)=0;
+	void Select(BOOL b) {bIsSelected=b;}
+	void Attack(BOOL b) {bIsAttacked=b;}
+	BOOL Selected() {return bIsSelected;}
+	BOOL Attacked() {return bIsAttacked;}
 	virtual int Update()=0;
 	CStructure *next,*prev;
 	CStructure();

@@ -62,7 +62,7 @@ int CUnitPlane::Update()
 
 	if ((modx==modxold)&&(mody==modyold))
 	{
-		if (IsTurning==FALSE)
+		if (bIsTurning==FALSE)
 		{
 			if ((modx==1)&&(mody==0))
 				CurrentFrame=23;
@@ -86,9 +86,9 @@ int CUnitPlane::Update()
 	}
 	else
 	{
-		if (!IsTurning)
+		if (!bIsTurning)
 		{
-			IsTurning=TRUE;
+			bIsTurning=TRUE;
 			if ((modx==1)&&(mody==0))
 				TurnDestFrame=23;
 			if ((modx==0)&&(mody==1))
@@ -108,7 +108,7 @@ int CUnitPlane::Update()
 		}
 	}
 	
-	if (IsTurning)
+	if (bIsTurning)
 	{
 		if (odd)
 		{
@@ -130,7 +130,7 @@ int CUnitPlane::Update()
 					CurrentFrame--;
 				else CurrentFrame++;
 			}
-			if (CurrentFrame==TurnDestFrame) IsTurning=FALSE;
+			if (CurrentFrame==TurnDestFrame) bIsTurning=FALSE;
 			if (CurrentFrame==-1) CurrentFrame=31;
 			if (CurrentFrame==32) CurrentFrame=0;
 		}

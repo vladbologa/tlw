@@ -20,13 +20,14 @@ protected:
 	int DestX, DestY;
 	int CurrentFrame, TurnDestFrame;
 	int iSubType;
-	BOOL IsTurning;
-	BOOL IsSelected;
+	int iLife;
+	BOOL bIsTurning, bIsSelected, bIsAttacked;
 
 public:
 	int GetSubType() { return iSubType; };
 	void SetSubType(int iNewType) { iSubType=iNewType; };
 	void SetParent(CStructure *p);
+	void Damage(int iDamage) { iLife-=iDamage; };
 	int GetCurrentFrame() { return CurrentFrame; };
 	int GetX(){ return PosX; };
 	int GetY(){ return PosY; };
@@ -34,8 +35,10 @@ public:
 	int GetDestY() { return DestY; };
 	void SetDestination(int iDestX, int iDestY){ DestX = iDestX; DestY = iDestY; };
 	void SetPosition(int iPosX, int iPosY){ PosX=iPosX; PosY=iPosY; };
-	void Select(BOOL b) {IsSelected=b;};
-	BOOL Selected() {return IsSelected;};
+	void Select(BOOL b) {bIsSelected=b;}
+	void Attack(BOOL b) {bIsAttacked=b;}
+	BOOL Selected() {return bIsSelected;}
+	BOOL Attacked() {return bIsAttacked;}
 	virtual int Update()=0;
 	CUnit *next,*prev;
 	CUnit();

@@ -14,9 +14,11 @@
 class CStructAirport : public CStructure  
 {
 public:
+	virtual void SetPosition(int iPosX, int iPosY, CMap *Map);
+	int Update();
 	CStructAirport();
 	virtual ~CStructAirport();
-
+	virtual int GetType() { return 4;}
 };
 
 #endif // !defined(AFX_STRUCTAIRPORT_H__7316CB8D_BC96_445A_BBEB_37F3BDAC8D42__INCLUDED_)

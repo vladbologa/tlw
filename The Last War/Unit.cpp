@@ -11,6 +11,8 @@
 CUnit::CUnit()
 {
 	CurrentFrame=0;
+	iLife=100;
+	bIsTurning=bIsSelected=bIsAttacked=FALSE;
 }
 
 void CUnit::SetParent(CStructure *p)
@@ -22,5 +24,4 @@ void CUnit::SetParent(CStructure *p)
 
 CUnit::~CUnit()
 {
-	IsTurning=FALSE;
 }
