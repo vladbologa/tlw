@@ -84,6 +84,7 @@ LPDIRECTDRAWCLIPPER pDDClipper = NULL;
 LPDIRECTDRAWSURFACE7 pDDCursor = NULL;
 LPDIRECTDRAWSURFACE7 pDDOffscreen = NULL;
 LPDIRECTDRAWSURFACE7 pDDOffscreen2 = NULL;
+LPDIRECTDRAWSURFACE7 pDDRightBar = NULL;
 LPDIRECTDRAWSURFACE7 pDDTile[MAX_TILES];
 LPDIRECTDRAWSURFACE7 pDDMenuBegin, pDDMenuOpt;
 LPDIRECTDRAWSURFACE7 pDDSprite120x90 = NULL;
@@ -141,6 +142,7 @@ class GameEngine
 	BOOL IsSelecting;
 	CMap Map;
 	CBmp TerrainType[256];
+	CBmp rBar;
 	BOOL fLMBPressed, oldLMBPressed;
 
 	CUnit plane[PLANESM];
@@ -252,6 +254,12 @@ BOOL GameEngine::Update(int Reserved)
 		pDDBackBuffer->Blt(&DestRect, pDDSprite120x90, NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
 	}
 
+	RECT DestRect;
+	SetRect(&DestRect, 488, 0, 640, 480);
+	HRESULT hr;
+	hr = pDDBackBuffer->Blt(&DestRect, pDDRightBar, NULL, DDBLT_WAIT, NULL);
+	if (hr!=DDERR_INVALIDRECT) return FALSE;
+
 	ShowMouse();
 	if (IsSelecting)
 	{
@@ -337,6 +345,14 @@ void GameEngine::LoadTerrainTiles(int tileset)
 	TerrainType[7].Load("c:\\GameArt\\Tiles\\treer3.bmp");
 	TerrainType[8].Load("c:\\GameArt\\Tiles\\treer4.bmp");
 
+	rBar.Load("c:\\GameArt\\rbar.bmp");
+
+	HDC hdc;
+
+	pDDRightBar->GetDC(&hdc);
+	rBar.Draw(hdc);
+	pDDRightBar->ReleaseDC(hdc);
+
 	for (int i = 0; i < 9; i++)
 	{
 		HDC hdc;
@@ -401,7 +417,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 	 CoInitialize(NULL);
 	 hr=DirectInputCreate(hInstance,DIRECTINPUT_VERSION,&pDI,NULL);
-	 SetRect(&ScreenSize, 0, 0, 640, 480);
+	 SetRect(&ScreenSize, 0, 0, 488, 480);
 
 	 wndclass.cbSize        = sizeof (wndclass);
      wndclass.style         = CS_HREDRAW | CS_VREDRAW;
@@ -454,9 +470,9 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 	switch (iMsg)
 	{
 	case WM_CREATE:
-		/*if (!BeginGame(hwnd))
-			PostQuitMessage(0);*/
-		PlayFile("c:\\GameArt\\Mini-Intro.avi", hwnd);
+		if (!BeginGame(hwnd))
+			PostQuitMessage(0);
+		//PlayFile("c:\\GameArt\\Mini-Intro.avi", hwnd);
 		return 0;
 
 	case WM_GRAPHNOTIFY:
@@ -773,6 +789,16 @@ BOOL DirectDrawInit(HWND hwnd)
 	if (hr!=DD_OK)
 	{
 		MessageBox(hwnd,"Error while creating offscreen surfaces. Restart the computer and try again.","Error",MB_ICONEXCLAMATION | MB_OK);
+		return FALSE;
+	}
+
+	Offscreen.dwWidth = 152;
+	Offscreen.dwHeight = 480;
+
+	hr = pDD7->CreateSurface(&Offscreen, &pDDRightBar, NULL);
+	if (hr!=DD_OK)
+	{
+		MessageBox(hwnd, "Error while creating offscreen surfaces. Restart the computer and try again.", "Error", MB_ICONEXCLAMATION | MB_OK);
 		return FALSE;
 	}
 	return TRUE;
