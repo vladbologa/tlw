@@ -1,0 +1,6 @@
+The Last War - Version History
+
+0.2.2 - added menubar (spring 2000)
+0.2.1 - ported to DirectX 7, graphic changes (novemeber 1999)
+0.2 - working initial game engine
+0.1 - initial working version (summer 1999)
