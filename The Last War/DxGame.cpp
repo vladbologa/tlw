@@ -17,7 +17,7 @@
 #include <ddraw.h>
 #include <dinput.h>
 
-#define  VERSION "v0.2.4b"
+#define  VERSION "v0.2.5b"
 
 #define KEYDOWN(name,key) (name[key] & 0x80)
 #define WM_GRAPHNOTIFY  WM_USER+13
@@ -42,7 +42,7 @@ enum GameState
 	NEW_GAME
 };
 
-GameState State = GAME_ACTIVE;
+GameState State = MAIN_MENU;
 BOOL FilmState = STOPPED;
 BOOL IsReading = FALSE;
 
@@ -228,12 +228,32 @@ BOOL GameEngine::Update(int Reserved)
 			r_plane.bottom=r_plane.top+90;
 			r_plane.right=r_plane.left+120;
 
+			int CursorOnUnit=0;
 			if (PtInRect(&r_plane, pt))
-			{ 
+			{
+				int relx, rely, poz;
+				DDSURFACEDESC2 sDesc;
+				sDesc.dwSize=sizeof(sDesc);
+				int frame=plane->GetCurrentFrame();
+				
+				relx=mouse_x-r_plane.left;
+				rely=mouse_y-r_plane.top;
+				if (pDDSprite120x90[frame]->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+				{
+					PBYTE mem=(PBYTE) sDesc.lpSurface;
+					poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+					if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnUnit=1;
+					pDDSprite120x90[frame]->Unlock(NULL);
+				}
+			}
+			
+			if (CursorOnUnit)
+			{ 	
 				if (!sel)
 				{
-					plane->Select(TRUE); 
-					sel=TRUE; 
+					plane->Select(TRUE);
+					sel=TRUE;
 				}
 				else plane->Select(FALSE);
 			}
