@@ -14,12 +14,12 @@
 
 class CUnit  
 {
-protected:
 	int PosX, PosY;
 	int DestX, DestY;
 	int CurrentFrame;
 	int TurnDestFrame;
 	BOOL IsTurning;
+	BOOL IsSelected;
 public:
 	CBmp SpriteArray[33];
 	int GetCurrentFrame() { return CurrentFrame; };
@@ -27,6 +27,8 @@ public:
 	int GetY(){ return PosY; };
 	int SetDestination(int iDestX, int iDestY){ DestX = iDestX; DestY = iDestY; };
 	int SetPosition(int iPosX, int iPosY){ PosX=iPosX; PosY=iPosY; };
+	void Select(BOOL b) {IsSelected=b;};
+	BOOL Selected() {return IsSelected;};
 	int Update();
 	CUnit();
 	virtual ~CUnit();

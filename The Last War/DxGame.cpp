@@ -17,6 +17,8 @@
 #include <ddraw.h>
 #include <dinput.h>
 
+#define  VERSION "v0.2.1"
+
 #define KEYDOWN(name,key) (name[key] & 0x80)
 #define WM_GRAPHNOTIFY  WM_USER+13
 #define HELPER_RELEASE(x) { if (x) x->Release(); x = NULL; }
@@ -33,6 +35,7 @@
 #define LM_DINAMIC 1
 
 #define MAX_TILES 10
+#define PLANESM 5
 
 enum GameState
 {
@@ -70,22 +73,20 @@ IMediaControl *pimc  = NULL;
 IMediaEventEx *pimex = NULL;
 IVideoWindow  *pivw  = NULL;
 
-LPDIRECTDRAW pDD = NULL;
-LPDIRECTDRAW4 pDD4 = NULL;
-LPDIRECTDRAWSURFACE4 pDDPrimary = NULL;
-LPDIRECTDRAWSURFACE4 pDDBackBuffer = NULL;
+LPDIRECTDRAW7 pDD7 = NULL;
+LPDIRECTDRAWSURFACE7 pDDPrimary = NULL;
+LPDIRECTDRAWSURFACE7 pDDBackBuffer = NULL;
 LPDIRECTINPUT pDI = NULL;
 LPDIRECTINPUTDEVICE pDIKeyboard = NULL;
 LPDIRECTINPUTDEVICE pDIMouse = NULL;
 LPDIRECTDRAWCLIPPER pDDClipper = NULL;
 
-LPDIRECTDRAWSURFACE4 pDDCursor = NULL;
-LPDIRECTDRAWSURFACE4 pDDOffscreen = NULL;
-LPDIRECTDRAWSURFACE4 pDDOffscreen2 = NULL;
-LPDIRECTDRAWSURFACE4 pDDBar = NULL;
-LPDIRECTDRAWSURFACE4 pDDTile[MAX_TILES];
-LPDIRECTDRAWSURFACE4 pDDMenuBegin, pDDMenuOpt;
-LPDIRECTDRAWSURFACE4 pDDSprite120x90 = NULL;
+LPDIRECTDRAWSURFACE7 pDDCursor = NULL;
+LPDIRECTDRAWSURFACE7 pDDOffscreen = NULL;
+LPDIRECTDRAWSURFACE7 pDDOffscreen2 = NULL;
+LPDIRECTDRAWSURFACE7 pDDTile[MAX_TILES];
+LPDIRECTDRAWSURFACE7 pDDMenuBegin, pDDMenuOpt;
+LPDIRECTDRAWSURFACE7 pDDSprite120x90 = NULL;
 
 //Function prototypes
 LRESULT CALLBACK WndProc (HWND, UINT, WPARAM, LPARAM);
@@ -135,13 +136,14 @@ CBmpList *BGActual, *BGNext, *BGFirst, *OptActual, *OptNext, *OptFirst;
 class GameEngine
 {
 	int CurentX, CurentY;
-	int mouse_x, mouse_y;
-	BOOL LeftButtonPressed;
+	int mouse_x, mouse_y, fmouse_x, fmouse_y;
+	BOOL LeftButtonPressed, RightButtonPressed;
+	BOOL IsSelecting;
 	CMap Map;
-	CBmp rBar;
 	CBmp TerrainType[256];
+	BOOL fLMBPressed, oldLMBPressed;
 
-	CUnit plane;
+	CUnit plane[PLANESM];
 public:
 	void GetMouseCoords(int &x, int &y);
 	void ShowMouse();
@@ -157,43 +159,123 @@ public:
 BOOL GameEngine::Update(int Reserved)
 {
 	int m_x, m_y;
+	HDC hdc;
+	static HPEN hPen=CreatePen(PS_SOLID, 1, RGB(20,200,40));
 
 	GetMouseCoords(m_x, m_y);
 	pDIKeyboard->GetDeviceState(sizeof(buffer), (LPVOID)&buffer);
 
 //***********Scrolling***********
-	if (m_x == 640)
-		CurentX+=10;
-	if (m_x == 0) CurentX-=10;
-	if (m_y == 480) 
-		CurentY+=10;
-	if (m_y == 0) CurentY-=10;
+	if (!IsSelecting)
+	{
+		if (m_x == 640)
+			CurentX+=10;
+		if (m_x == 0) CurentX-=10;
+		if (m_y == 480) 
+			CurentY+=10;
+		if (m_y == 0) CurentY-=10;
+	}
 	CorrectCoords();
-
 	UpdateTerrain(CurentX, CurentY);
 //********End of Scrolling********
 
-	HDC hdc;
+	if (IsSelecting&&(!LeftButtonPressed)) 
+	{
+		for (int i=0; i<PLANESM; i++)
+		{
+			POINT pt;
+			LONG tmp;
+			RECT rc, r_plane, temp;
+
+			pt.x=plane[i].GetX()-CurentX;
+			pt.y=plane[i].GetY()-CurentY;
+			rc.top=fmouse_y;
+			rc.left=fmouse_x;
+			rc.bottom=mouse_y;
+			rc.right=mouse_x;
+
+			r_plane.top=pt.y;
+			r_plane.left=pt.x;
+			r_plane.bottom=pt.y+90;
+			r_plane.right=pt.x+120;
+
+			if (rc.top>rc.bottom){ tmp=rc.top; rc.top=rc.bottom; rc.bottom=tmp;}
+			if (rc.left>rc.right){ tmp=rc.left; rc.left=rc.right; rc.right=tmp;}
+
+			if (IntersectRect(&temp, &rc, &r_plane)) plane[i].Select(TRUE);
+			else plane[i].Select(FALSE);
+
+		}
+		IsSelecting=FALSE;
+	}
+	if (LeftButtonPressed&&oldLMBPressed&&(!fLMBPressed)) IsSelecting=TRUE;
 	
-	if (LeftButtonPressed) plane.SetDestination(CurentX+m_x, CurentY+m_y);
+	/*if ((!LeftButtonPressed)&&(oldLMBPressed)&&(!fLMBPressed))
+	{
+		for (int i=0; i<PLANESM; i++)
+		{
+			POINT pt;
+			RECT r_plane;
 
-	plane.Update();
-	pDDSprite120x90->GetDC(&hdc);
-	if (FAILED(plane.SpriteArray[plane.GetCurrentFrame()].Draw(hdc))) return FALSE;
-	pDDSprite120x90->ReleaseDC(hdc);
-	
-	RECT DestRect;
+			pt.x=mouse_x;
+			pt.y=mouse_y;
 
-	SetRect(&DestRect, plane.GetX()-CurentX, plane.GetY()-CurentY, plane.GetX()+120-CurentX, plane.GetY()+90-CurentY);
-	pDDBackBuffer->Blt(&DestRect, pDDSprite120x90, NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
+			r_plane.top=plane[i].GetX()-CurentX;
+			r_plane.left=plane[i].GetY()-CurentY;
+			r_plane.bottom=pt.y+90;
+			r_plane.right=pt.x+120;
 
-	SetRect(&DestRect, 488, 1, 640, 481);
-	pDDBackBuffer->Blt(&DestRect, pDDBar, NULL, DDBLT_WAIT, NULL);
+			if (PtInRect(&r_plane, pt)) plane[i].Select(TRUE);
+			else plane[i].Select(FALSE);
+		}
+	}*/
+
+	for (int i=0; i<PLANESM; i++)
+	{
+		if (RightButtonPressed&&plane[i].Selected()) plane[i].SetDestination(CurentX+m_x+rand()%100, CurentY+m_y+rand()%100);
+		plane[i].Update();
+		pDDSprite120x90->GetDC(&hdc);
+		if (FAILED(plane[i].SpriteArray[plane[i].GetCurrentFrame()].Draw(hdc))) return FALSE;
+		pDDSprite120x90->ReleaseDC(hdc);
+
+		RECT DestRect;
+
+		SetRect(&DestRect, plane[i].GetX()-CurentX, plane[i].GetY()-CurentY, plane[i].GetX()+120-CurentX, plane[i].GetY()+90-CurentY);
+		if (plane[i].Selected())
+		{
+			pDDBackBuffer->GetDC(&hdc);
+			SelectObject(hdc, (HBRUSH) GetStockObject(NULL_BRUSH));
+			SelectObject(hdc, hPen);
+			Ellipse(hdc, DestRect.left+15, DestRect.top+15, DestRect.right-15, DestRect.bottom-15);
+			pDDBackBuffer->ReleaseDC(hdc);
+		}
+		pDDBackBuffer->Blt(&DestRect, pDDSprite120x90, NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
+	}
 
 	ShowMouse();
+	if (IsSelecting)
+	{
+		pDDBackBuffer->GetDC(&hdc);
+		SelectObject(hdc, hPen);
+		SelectObject(hdc, (HBRUSH) GetStockObject(NULL_BRUSH));
+		Rectangle(hdc,fmouse_x, fmouse_y, mouse_x, mouse_y);
+		pDDBackBuffer->ReleaseDC(hdc);
+	}
+	if (!IsSelecting)
+	{
+		fmouse_x=mouse_x;
+		fmouse_y=mouse_y;
+		fLMBPressed=oldLMBPressed;
+	}
+	oldLMBPressed=LeftButtonPressed;
+
 	pDDPrimary->Flip(NULL, DDFLIP_WAIT);
 	
-	if (KEYDOWN(buffer, DIK_ESCAPE)) return FALSE;
+	if (KEYDOWN(buffer, DIK_ESCAPE))
+	{
+		DeleteObject(hPen);
+		return FALSE;
+	}
 	return TRUE;
 }
 
@@ -229,11 +311,17 @@ GameEngine::GameEngine()
 GameEngine::Load(int Level, int Reserved)
 {
 	CurentX = CurentY = 0;
+	IsSelecting=FALSE;
 	Map.Load(Level);
 	LoadTerrainTiles();	
+	fLMBPressed=oldLMBPressed=FALSE;
 
-	plane.SetPosition(320,200);
-	plane.SetDestination(320, 100);
+	for (int i=0; i<PLANESM; i++)
+	{
+		plane[i].SetPosition(320+i*100,200+i*100);
+		plane[i].SetDestination(320+i*100, 100+i*100);
+		plane[i].Select(TRUE);
+	}
 	return TRUE;
 }
 
@@ -248,12 +336,6 @@ void GameEngine::LoadTerrainTiles(int tileset)
 	TerrainType[6].Load("c:\\GameArt\\Tiles\\treer2.bmp");
 	TerrainType[7].Load("c:\\GameArt\\Tiles\\treer3.bmp");
 	TerrainType[8].Load("c:\\GameArt\\Tiles\\treer4.bmp");
-	rBar.Load("c:\\GameArt\\rbar.bmp");
-
-	HDC hdc;
-	pDDBar->GetDC(&hdc);
-	rBar.Draw(hdc);
-	pDDBar->ReleaseDC(hdc);
 
 	for (int i = 0; i < 9; i++)
 	{
@@ -287,6 +369,8 @@ void GameEngine::GetMouseCoords(int &x, int &y)
 	mouse_x = m_x; mouse_y = m_y;
 	if (dims.rgbButtons[0] & 0x80) LeftButtonPressed=TRUE;
 		else LeftButtonPressed=FALSE;
+	if (dims.rgbButtons[1] & 0x80) RightButtonPressed=TRUE;
+		else RightButtonPressed=FALSE;
 }
 
 void GameEngine::ShowMouse()
@@ -300,7 +384,6 @@ void GameEngine::ShowMouse()
 
 GameEngine::~GameEngine()
 {
-
 }
 
 //***************Engine Class***************
@@ -496,26 +579,19 @@ BOOL DirectDrawInit(HWND hwnd)
 	HRESULT hr = 0;
 	
 	//DirectDraw object creation
-	hr = DirectDrawCreate(NULL, &pDD, NULL);
+	hr = DirectDrawCreateEx(NULL, (void **) &pDD7, IID_IDirectDraw7, NULL);
 	if (hr!=DD_OK)
 	{
-		MessageBox(hwnd,"Error while creating DirectDraw object. You probably don't have any version of DirectX installed.","Error",MB_ICONEXCLAMATION | MB_OK);
+		MessageBox(hwnd,"Error while creating DirectDraw object. You must have DirectX 7 installed.","Error",MB_ICONEXCLAMATION | MB_OK);
 		return FALSE;
 	}
-	hr = pDD->QueryInterface(IID_IDirectDraw4, (LPVOID *) & pDD4);
-	if (hr!=DD_OK)
-	{
-		MessageBox(hwnd,"Error while creating DirectDraw object. You probably don't have DirectX 6+ installed.","Error",MB_ICONEXCLAMATION | MB_OK);
-		return FALSE;
-	}
-	pDD->Release();
-	hr = pDD4->SetCooperativeLevel(hwnd,DDSCL_FULLSCREEN | DDSCL_EXCLUSIVE);
+	hr = pDD7->SetCooperativeLevel(hwnd,DDSCL_FULLSCREEN | DDSCL_EXCLUSIVE);
 	if (hr!=DD_OK) 
 	{
 		MessageBox(hwnd,"Error while setting DirectDraw Cooperative level.","Error",MB_ICONEXCLAMATION | MB_OK);
 		return FALSE;
 	}
-	hr = pDD4->SetDisplayMode(640, 480,16,0,0);
+	hr = pDD7->SetDisplayMode(640, 480,16,0,0);
 	if (hr!=DD_OK) 
 	{
 		MessageBox(hwnd,"Error while setting display mode.","Error",MB_ICONEXCLAMATION | MB_OK);
@@ -535,7 +611,7 @@ BOOL DirectDrawInit(HWND hwnd)
 	Primary.dwBackBufferCount = 1;
 	BackBuffer.dwCaps = DDSCAPS_BACKBUFFER;
 
-	hr = pDD4->CreateSurface(&Primary,&pDDPrimary,NULL);
+	hr = pDD7->CreateSurface(&Primary,&pDDPrimary,NULL);
 	if (hr!=DD_OK)
 	{
 		MessageBox(hwnd,"Error while creating primary surface. You might have less than 1 MB of video memory...","Error",MB_ICONEXCLAMATION | MB_OK);
@@ -576,7 +652,7 @@ BOOL DirectDrawInit(HWND hwnd)
 	pMem += sizeof(rgndh);
 	CopyMemory(pMem, &clip, sizeof(RECT));
 
-	hr = pDD4->CreateClipper(0, &pDDClipper, NULL);
+	hr = pDD7->CreateClipper(0, &pDDClipper, NULL);
 	if (hr!=DD_OK)
 	{
 		MessageBox(hwnd,"Error while creating the clipper object. Restart the computer and try again.","Error",MB_ICONEXCLAMATION | MB_OK);
@@ -614,7 +690,7 @@ BOOL DirectDrawInit(HWND hwnd)
 
 	for (int i = 0; i < MAX_TILES; i++)
 	{
-		hr = pDD4->CreateSurface(&Offscreen,&pDDTile[i],NULL);
+		hr = pDD7->CreateSurface(&Offscreen,&pDDTile[i],NULL);
 		if (hr!=DD_OK)
 		{
 			MessageBox(hwnd,"Error while creating offscreen surfaces. Restart the computer and try again.","Error",MB_ICONEXCLAMATION | MB_OK);
@@ -628,7 +704,7 @@ BOOL DirectDrawInit(HWND hwnd)
 	Offscreen.dwWidth = 120;
 	Offscreen.dwHeight = 90;
 
-	hr = pDD4->CreateSurface(&Offscreen,&pDDSprite120x90,NULL);
+	hr = pDD7->CreateSurface(&Offscreen,&pDDSprite120x90,NULL);
 	if (hr!=DD_OK)
 	{
 		MessageBox(hwnd,"Error while creating offscreen surfaces. Restart the computer and try again.","Error",MB_ICONEXCLAMATION | MB_OK);
@@ -646,14 +722,14 @@ BOOL DirectDrawInit(HWND hwnd)
 	Offscreen.dwWidth = 640;
 	Offscreen.dwHeight = 480;
 
-	hr = pDD4->CreateSurface(&Offscreen,&pDDOffscreen,NULL);
+	hr = pDD7->CreateSurface(&Offscreen,&pDDOffscreen,NULL);
 	if (hr!=DD_OK)
 	{
 		MessageBox(hwnd,"Error while creating offscreen surfaces. Restart the computer and try again.","Error",MB_ICONEXCLAMATION | MB_OK);
 		return FALSE;
 	}
 
-	hr = pDD4->CreateSurface(&Offscreen,&pDDOffscreen2,NULL);
+	hr = pDD7->CreateSurface(&Offscreen,&pDDOffscreen2,NULL);
 	if (hr!=DD_OK)
 	{
 		MessageBox(hwnd,"Error while creating offscreen surfaces. Restart the computer and try again.","Error",MB_ICONEXCLAMATION | MB_OK);
@@ -671,7 +747,7 @@ BOOL DirectDrawInit(HWND hwnd)
 	Offscreen.dwWidth = 32;
 	Offscreen.dwHeight = 32;
 
-	hr = pDD4->CreateSurface(&Offscreen, &pDDCursor, NULL);
+	hr = pDD7->CreateSurface(&Offscreen, &pDDCursor, NULL);
 	if (hr!=DD_OK)
 	{
 		MessageBox(hwnd,"Error while creating offscreen surfaces. Restart the computer and try again.","Error",MB_ICONEXCLAMATION | MB_OK);
@@ -683,7 +759,7 @@ BOOL DirectDrawInit(HWND hwnd)
 	Offscreen.dwWidth = 220;
 	Offscreen.dwHeight = 220;
 
-	hr = pDD4->CreateSurface(&Offscreen,&pDDMenuBegin,NULL);
+	hr = pDD7->CreateSurface(&Offscreen,&pDDMenuBegin,NULL);
 	if (hr!=DD_OK)
 	{
 		MessageBox(hwnd,"Error while creating offscreen surfaces. Restart the computer and try again.","Error",MB_ICONEXCLAMATION | MB_OK);
@@ -693,23 +769,12 @@ BOOL DirectDrawInit(HWND hwnd)
 	Offscreen.dwWidth = 170;
 	Offscreen.dwHeight = 150;
 
-	hr = pDD4->CreateSurface(&Offscreen,&pDDMenuOpt,NULL);
+	hr = pDD7->CreateSurface(&Offscreen,&pDDMenuOpt,NULL);
 	if (hr!=DD_OK)
 	{
 		MessageBox(hwnd,"Error while creating offscreen surfaces. Restart the computer and try again.","Error",MB_ICONEXCLAMATION | MB_OK);
 		return FALSE;
 	}
-	
-	Offscreen.dwWidth = 152;
-	Offscreen.dwHeight= 480;
-
-	hr = pDD4->CreateSurface(&Offscreen, &pDDBar ,NULL);
-	if (hr!=DD_OK)
-	{
-		MessageBox(hwnd,"Error while creating offscreen surfaces. Restart the computer and try again.","Error",MB_ICONEXCLAMATION | MB_OK);
-		return FALSE;
-	}
-
 	return TRUE;
 }
 
@@ -723,7 +788,7 @@ void DirectDrawUnInit()
 	pDDClipper->Release();
 	pDDBackBuffer->Release();
 	pDDPrimary->Release();
-	pDD4->Release();
+	pDD7->Release();
 }
 
 void DirectInputUnInit()
@@ -912,7 +977,7 @@ void UpdateMainMenu()
 	SetTextAlign(hdc, TA_BOTTOM | TA_RIGHT);
 	SetBkMode(hdc, TRANSPARENT);
 	SetTextColor(hdc, RGB(255,255,255));
-	TextOut(hdc, 640, 480, "v0.1", 4);
+	TextOut(hdc, 640, 480, VERSION, strlen(VERSION));
 	hr = pDDOffscreen->ReleaseDC(hdc);
 	if (FAILED(hr)) PostQuitMessage(0);
 	hr = pDDBackBuffer->Blt(NULL, pDDOffscreen, NULL, DDBLT_WAIT, NULL);
