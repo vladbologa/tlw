@@ -233,7 +233,7 @@ BOOL GameEngine::Update(int Reserved)
 
 	for (int i=0; i<PLANESM; i++)
 	{
-		if (RightButtonPressed&&plane[i].Selected()) plane[i].SetDestination(CurentX+m_x+rand()%100, CurentY+m_y+rand()%100);
+		if (RightButtonPressed&&plane[i].Selected()) plane[i].SetDestination(CurentX+m_x-60+rand()%10, CurentY+m_y-45+rand()%10);
 		plane[i].Update();
 		pDDSprite120x90->GetDC(&hdc);
 		if (FAILED(plane[i].SpriteArray[plane[i].GetCurrentFrame()].Draw(hdc))) return FALSE;

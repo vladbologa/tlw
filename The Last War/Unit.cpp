@@ -113,9 +113,27 @@ int CUnit::Update()
 	{
 		if (odd)
 		{
-			if (CurrentFrame>TurnDestFrame) CurrentFrame--;
-			if (CurrentFrame<TurnDestFrame) CurrentFrame++;
+			int nw, rw;
+
+			if (CurrentFrame>TurnDestFrame)
+			{
+				nw=CurrentFrame-TurnDestFrame;
+				rw=32-CurrentFrame+TurnDestFrame;
+				if (nw>=rw)
+					CurrentFrame++;
+				else CurrentFrame--;
+			}
+			if (CurrentFrame<TurnDestFrame) 
+			{
+				nw=TurnDestFrame-CurrentFrame;
+				rw=32-TurnDestFrame+CurrentFrame;
+				if (nw>=rw)
+					CurrentFrame--;
+				else CurrentFrame++;
+			}
 			if (CurrentFrame==TurnDestFrame) IsTurning=FALSE;
+			if (CurrentFrame==-1) CurrentFrame=31;
+			if (CurrentFrame==32) CurrentFrame=0;
 		}
 	}
 	return 0;
