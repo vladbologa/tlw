@@ -17,7 +17,7 @@
 #include <ddraw.h>
 #include <dinput.h>
 
-#define  VERSION "v0.2.1"
+#define  VERSION "v0.2.2"
 
 #define KEYDOWN(name,key) (name[key] & 0x80)
 #define WM_GRAPHNOTIFY  WM_USER+13
