@@ -15,12 +15,15 @@
 class CMissile : public CUnit  
 {
 	CStructure *StructTarget;
-	int iTargetType, iDestroy;
+	int iTargetType, iDestroy, iFrame;
+	int iStrength;
 
 public:
 	int Update();
+	void SetStrength(int s){iStrength=s;}
 	void SetTarget(CUnit *, CStructure *, int);
 	int Destroyed() {return iDestroy;}
+	int GetFrame(){return iFrame;}
 	CMissile();
 	virtual ~CMissile();
 	CMissile *next;

@@ -13,7 +13,7 @@
 
 class CMap  
 {
-	BYTE SizeX, SizeY;
+	BYTE SizeX, SizeY, PStartX, PStartY, CStartX, CStartY;
 	BYTE Free[256][256];
 	BYTE Terrain[128][128];
 public:
@@ -24,6 +24,7 @@ public:
 	void Release(int i, int j) {Free[i][j]=1;}
 	BOOL Available(BYTE i, BYTE j);
 	void Load(char *filename);
+	void GetStartPositions(BYTE &px, BYTE &py, BYTE &cx, BYTE &cy);
 	CMap();
 	virtual ~CMap();
 

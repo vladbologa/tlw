@@ -50,7 +50,6 @@ int CUnitPlane::Update()
 		{
 			PosY++;
 			mody=1;
-
 		}
 		if (DestY<PosY) 
 		{

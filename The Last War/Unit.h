@@ -15,20 +15,23 @@
 class CUnit  
 {
 protected:
-	int iExplodeFrame, iShoot;
+	int iExplodeFrame, iShoot, iMapSizeX, iMapSizeY;
 	CUnit *UnitTarget;
 	CStructure *Parent, *StructTarget;
-	int PosX, PosY;
-	int DestX, DestY;
+	int PosX, PosY, DestX, DestY;
 	int CurrentFrame, TurnDestFrame;
-	int iSubType;
-	int iLife;
-	int iTargetType;
-	BOOL bIsTurning, bIsSelected, bIsAttacked;
+	int iSubType,iTargetType;
+	int iLife, iPlayer;
+	BOOL bIsTurning, bIsSelected, bIsAttacked, bComputerAttack;
 
 public:
 	BOOL Attacking();
 	BOOL InRange();
+	void SetMapSize(BYTE x, BYTE y) {iMapSizeX=x; iMapSizeY=y;}
+	void ComputerAttack(BOOL bCA){bComputerAttack=bCA;}
+	BOOL GetComputerAttack(){return bComputerAttack;}
+	void SetPlayer(int Player) {iPlayer=Player;}
+	int GetPlayer(){return iPlayer;}
 	void Shoot(){iShoot=100;}
 	int CanShoot() {return !iShoot;}
 	int GetTargetType() {return iTargetType;}
@@ -45,7 +48,7 @@ public:
 	int GetY(){ return PosY; };
 	int GetDestX() { return DestX; };
 	int GetDestY() { return DestY; };
-	void SetDestination(int iDestX, int iDestY){ DestX = iDestX; DestY = iDestY; };
+	void SetDestination(int iDestX, int iDestY);
 	void SetPosition(int iPosX, int iPosY){ PosX=iPosX; PosY=iPosY; };
 	void Select(BOOL b) {bIsSelected=b;}
 	void Attack(BOOL b) {bIsAttacked=b;}

@@ -49,6 +49,13 @@
 
 #define UNINIT_MENU		1
 #define UNINIT_GAME		2
+
+#define PLANE_PRICE 100
+#define F15_PRICE 150
+#define CCENTER_PRICE 500
+#define OILPLANT_PRICE 300
+#define AIRPORT_PRICE 200
+#define PYRAMID_PRICE 400
 		
 enum GameState
 {
@@ -119,6 +126,7 @@ LPDIRECTDRAWSURFACE7 pDDMenuBegin, pDDMenuOpt;
 LPDIRECTDRAWSURFACE7 pDDMenuSM, pDDSMNewGame, pDDSMCustom;
 LPDIRECTDRAWSURFACE7 pDDMenuBeginTXT, pDDMenuBeginTXTSel, pDDMenuOptTXTSel, pDDMenuExitTXTSel;
 LPDIRECTDRAWSURFACE7 pDDSprite120x90[81];
+LPDIRECTDRAWSURFACE7 pDDSprite120x90C[66];
 LPDIRECTDRAWSURFACE7 pDDSpriteOilPlant, pDDSprite185x160, pDDSprite170x160;
 LPDIRECTDRAWSURFACE7 pDDCCenterBuild, pDDAirBuild, pDDOilBuild, pDDPyrBuild;
 LPDIRECTDRAWSURFACE7 pDDAirport, pDDAirportSelected, pDDAirportMask;
@@ -140,7 +148,8 @@ LPDIRECTDRAWSURFACE7 pDDError, pDDErrorOKP, pDDErrorOKHover;
 LPDIRECTDRAWSURFACE7 pDDWinMessage, pDDLoseMessage;
 LPDIRECTDRAWSURFACE7 pDDConfirm, pDDConfirmOKP, pDDConfirmOKHover, pDDConfirmCancelP, pDDConfirmCancelHover;
 LPDIRECTDRAWSURFACE7 pDDExplosionBig[15],pDDMissile[8];
-LPDIRECTDRAWSURFACE7 pDDMoney;
+LPDIRECTDRAWSURFACE7 pDDMoney, pDDBuildUnit, pDDBuildStruct, pDDStructComplete;
+LPDIRECTDRAWSURFACE7 pDDPlaceButton, pDDPlaceButtonP, pDDPlaceButtonHover;
 
 //Function prototypes
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -203,10 +212,10 @@ class GameEngine
 	BOOL IsSelecting, WaitSelection, bCursorTarget;
 	BOOL bLMB, bRMB, bLMBFirst, bLMBOld, bRMBOld;
 	BOOL MenuButtonPressed, MenuButtonPressedOld, PlaneButtonPressed, PlaneButtonPressedOld, bF15BtnP, bF15BtnPOld;
-	BOOL bCCenterBP, bCCenterBPOld, bOPBP, bOPBPOld, bAirBP, bAirBPOld, bPyBP, bPyBPOld;
+	BOOL bCCenterBP, bCCenterBPOld, bOPBP, bOPBPOld, bAirBP, bAirBPOld, bPyBP, bPyBPOld, bPlaceBP, bPlaceBPOld;
 	int iSelectedCount, iStructSelType, iCreateBuilding;
 	int iUnitCountPlayer, iStructCountPlayer, iUnitCountComp, iStructCountComp;
-	int CStartX, CStartY;
+	BYTE PStartX, PStartY, CStartX, CStartY;
 	long lMoneyPlayer, lMoneyComp;
 	
 	CMap Map;
@@ -222,13 +231,13 @@ public:
 	void GetMouseCoords(int &x, int &y);
 	void ShowMouse();
 	void CorrectCoords();
-	BOOL Update(int Reserved = 0);
+	BOOL Update();
 	BOOL UpdateTerrain(int x = 0, int y = 0);
 	BOOL Load(char *filename);
 	void LoadTerrainTiles(int tileset = 0);
 };
 
-BOOL GameEngine::Update(int Reserved)
+BOOL GameEngine::Update()
 {
 	HDC hdc;
 	int m_x, m_y, iNrSel=0, iStructSel=0, iTypeAtt=0, create_x, create_y,i,j;
@@ -244,7 +253,7 @@ BOOL GameEngine::Update(int Reserved)
 	if (!bLMB) 
 	{
 		MenuButtonPressed=PlaneButtonPressed=bF15BtnP=FALSE;
-		bCCenterBP=bOPBP=bAirBP=bPyBP=FALSE;
+		bCCenterBP=bOPBP=bAirBP=bPyBP=bPlaceBP=FALSE;
 	}
 	bMouseOnPanel=MouseOnPanel();
 	bCursorTarget=FALSE;
@@ -266,7 +275,25 @@ BOOL GameEngine::Update(int Reserved)
 //********End of Scrolling********
 
 //***********Selection***********
-	if (bRMB) iCreateBuilding=0;
+	if (bRMB&&iCreateBuilding) 
+	{
+		switch (iCreateBuilding)
+		{
+		case 1:
+			lMoneyPlayer+=CCENTER_PRICE;
+			break;
+		case 2:
+			lMoneyPlayer+=OILPLANT_PRICE;
+			break;
+		case 3:
+			lMoneyPlayer+=AIRPORT_PRICE;
+			break;
+		case 4:
+			lMoneyPlayer+=PYRAMID_PRICE;
+			break;
+		}
+		iCreateBuilding=0;
+	}
 	if (!iCreateBuilding)
 	{
 	if (IsSelecting&&(!bLMB))
@@ -1089,14 +1116,24 @@ BOOL GameEngine::Update(int Reserved)
 		{
 			if (Unit->Selected())
 				pDDBackBuffer->Blt(&DestRect, pDDUnitSelection, NULL, DDBLT_WAIT|DDBLT_KEYSRC, NULL);
-			switch (Unit->GetSubType())
-			{
-			case 1:
-				pDDBackBuffer->Blt(&DestRect, pDDSprite120x90[Unit->GetCurrentFrame()], NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
-				break;
-			case 2:
-				pDDBackBuffer->Blt(&DestRect, pDDSprite120x90[Unit->GetCurrentFrame()+33], NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
-			}
+			if (Unit->GetPlayer()==1)
+				switch (Unit->GetSubType())
+				{
+				case 1:
+					pDDBackBuffer->Blt(&DestRect, pDDSprite120x90[Unit->GetCurrentFrame()], NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
+					break;
+				case 2:
+					pDDBackBuffer->Blt(&DestRect, pDDSprite120x90[Unit->GetCurrentFrame()+33], NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
+				}
+			else if (Unit->GetPlayer()==2)
+				switch (Unit->GetSubType())
+				{
+				case 1:
+					pDDBackBuffer->Blt(&DestRect, pDDSprite120x90C[Unit->GetCurrentFrame()], NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
+					break;
+				case 2:
+					pDDBackBuffer->Blt(&DestRect, pDDSprite120x90C[Unit->GetCurrentFrame()+33], NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
+				}
 		}
 		if (iEF)
 		{
@@ -1108,6 +1145,9 @@ BOOL GameEngine::Update(int Reserved)
 	}	
 
 	//Computer oponent AI
+	BOOL bCCenterComp=FALSE, bOilPlantComp=FALSE, bPyramidComp=FALSE, bAirportComp=FALSE;
+	BOOL bNewOilPlant=FALSE, bNewAirport=FALSE;
+	
 	iUnitCountPlayer=iUnitCountComp=iStructCountPlayer=iStructCountComp=0;
 	Unit=first;
 	while (Unit)
@@ -1119,18 +1159,86 @@ BOOL GameEngine::Update(int Reserved)
 	Struct=sfirst;
 	while (Struct)
 	{
+		if (Struct->GetPlayer()==2)
+			switch (Struct->GetType())
+			{
+			case 1:
+				bCCenterComp=TRUE;
+				break;
+			case 2:
+				bOilPlantComp=TRUE;
+				break;
+			case 3:
+				bPyramidComp=TRUE;
+				break;
+			case 4:
+				bAirportComp=TRUE;
+				break;
+			}
+		Struct=Struct->next;
+	}
+	Struct=sfirst;
+	while (Struct)
+	{
 		if (Struct->GetPlayer()==1) iStructCountPlayer++;
 		else if (Struct->GetPlayer()==2) 
 		{
+			if (Struct->GetType()==1&&!Struct->Building())
+			{
+				if (Struct->WaitingToSelect())
+				{
+					if (Struct->GetUnitType()==4) bNewOilPlant=TRUE;
+					else if (Struct->GetUnitType()==5) bNewAirport=TRUE;
+					Struct->PlaceBuilding();
+				}
+				else if (!bOilPlantComp&&lMoneyComp>=OILPLANT_PRICE&&!Struct->SBComplete()) 
+				{
+					Struct->BuildUnit(4);
+					lMoneyComp-=OILPLANT_PRICE;
+				}
+				else if (!bAirportComp&&lMoneyComp>=AIRPORT_PRICE&&!Struct->SBComplete()) 
+				{
+					Struct->BuildUnit(5);
+					lMoneyComp-=AIRPORT_PRICE;
+				}
+			}
 			if (Struct->GetType()==4)
 			{
 				if (iUnitCountComp<MAX_UNIT) 
-					if (!Struct->Building()) Struct->BuildUnit(1);
-				if (Struct->UBComplete()) AddUnit(LWU_AIR, LWU_PLANE,Struct,2);
+					if (!Struct->Building())
+					{
+						if (lMoneyComp>F15_PRICE)
+						{
+							Struct->BuildUnit(LWU_F15);
+							lMoneyComp-=F15_PRICE;
+						}
+						else if (lMoneyComp>PLANE_PRICE)
+						{
+							Struct->BuildUnit(LWU_PLANE);
+							lMoneyComp-=PLANE_PRICE;
+						}
+					}
 			}
 			iStructCountComp++;
 		}
 		Struct=Struct->next;
+	}
+
+	if (bNewOilPlant)
+	{
+		stemp=new CStructOilPlant;
+		stemp->SetPlayer(2);
+		stemp->SetPosition(CStartY*160-160,CStartX*160+160,&Map);
+		stemp->next=sfirst;
+		sfirst=stemp;
+	}
+	else if (bNewAirport)
+	{
+		stemp=new CStructAirport;
+		stemp->SetPlayer(2);
+		stemp->SetPosition(CStartY*160+240,CStartX*160,&Map);
+		stemp->next=sfirst;
+		sfirst=stemp;
 	}
 
 	if (!iStructCountPlayer&&!iUnitCountPlayer) State=LOSE_MESSAGE;
@@ -1144,7 +1252,7 @@ BOOL GameEngine::Update(int Reserved)
 	Unit=first;
 	while (Unit)
 	{
-		if (!Unit->GetTargetType())
+		if (!Unit->GetTargetType()&&Unit->GetX()==Unit->GetDestX()&&Unit->GetY()==Unit->GetDestY())
 		{
 			Struct=sfirst;
 			while (Struct)
@@ -1233,7 +1341,7 @@ BOOL GameEngine::Update(int Reserved)
 			if (Unit->GetPlayer()==2&&Unit->GetComputerAttack())
 			{
 				Unit->SetTarget(NULL, NULL, 0);
-				Unit->SetDestination(CStartX*80+rand()%250, CStartY*80+rand()%250);
+				Unit->SetDestination(CStartY*160+rand()%250, CStartX*160+rand()%250);
 				Unit->ComputerAttack(FALSE);
 			}
 			Unit=Unit->next;
@@ -1281,125 +1389,220 @@ BOOL GameEngine::Update(int Reserved)
 
 	if (iStructSelType==AIRPORT)
 	{
-		//Add Plane Button
-		SetRect(&rButton,715,130,715+80,130+60);
-		SetRect(&rButtonSm,715,130,715+80,130+54);
-		if (PtInRect(&rButtonSm, pCursor))
+		Struct=sfirst;
+		while (!Struct->Selected()) Struct=Struct->next;
+		if (Struct->Building())
 		{
-			if (bLMB)
+			RECT rBuild;
+
+			SetRect(&rBuild, 715, 110,715+80, 110+55);
+			pDDBackBuffer->Blt(&rBuild, pDDBuildUnit, NULL, DDBLT_WAIT, NULL);
+			pDDBackBuffer->GetDC(&hdc);
+			SelectObject(hdc,GetStockObject(GRAY_BRUSH));
+			Rectangle(hdc,  715, 110+55,715+(int) (Struct->PercentageComplete()*0.8), 110+55+10);
+			pDDBackBuffer->ReleaseDC(hdc);
+
+		}
+		else
+		{
+			//Add Plane Button
+			SetRect(&rButton,715,130,715+80,130+60);
+			SetRect(&rButtonSm,715,130,715+80,130+54);
+			if (PtInRect(&rButtonSm, pCursor))
 			{
-				if (!bLMBOld) PlaneButtonPressed=TRUE;
-				if (PlaneButtonPressed) pDDBackBuffer->Blt(&rButton, pDDPlaneButtonPressed, NULL, DDBLT_WAIT, NULL);
+				if (bLMB)
+				{
+					if (!bLMBOld) PlaneButtonPressed=TRUE;
+					if (PlaneButtonPressed) pDDBackBuffer->Blt(&rButton, pDDPlaneButtonPressed, NULL, DDBLT_WAIT, NULL);
+					else pDDBackBuffer->Blt(&rButton, pDDPlaneButton, NULL, DDBLT_WAIT, NULL);
+				}
 				else pDDBackBuffer->Blt(&rButton, pDDPlaneButton, NULL, DDBLT_WAIT, NULL);
 			}
 			else pDDBackBuffer->Blt(&rButton, pDDPlaneButton, NULL, DDBLT_WAIT, NULL);
-		}
-		else pDDBackBuffer->Blt(&rButton, pDDPlaneButton, NULL, DDBLT_WAIT, NULL);
-		if (PtInRect(&rButton,pCursor)&&PlaneButtonPressedOld&&(!bLMB))
-		{		
-			if (!add)
-			{
-				Struct=sfirst;
-				while (!Struct->Selected()) Struct=Struct->next;
-				AddUnit(LWU_AIR, LWU_PLANE, Struct,1);
-				add=1;
+			if (PtInRect(&rButton,pCursor)&&PlaneButtonPressedOld&&(!bLMB))
+			{		
+				if (!add)
+				{
+					Struct=sfirst;
+					while (!Struct->Selected()) Struct=Struct->next;
+					if (lMoneyPlayer>=PLANE_PRICE)
+					{
+						Struct->BuildUnit(LWU_PLANE);
+						lMoneyPlayer-=PLANE_PRICE;
+					}
+					add=1;
+				}
 			}
-		}
-		else add=0;
+			else add=0;
 
-		//Add F15 Button
-		SetRect(&rButton,715,185,715+80,185+60);
-		SetRect(&rButtonSm,715,185,715+80,185+54);
-		if (PtInRect(&rButtonSm, pCursor))
-		{
-			if (bLMB)
+			//Add F15 Button
+			SetRect(&rButton,715,185,715+80,185+60);
+			SetRect(&rButtonSm,715,185,715+80,185+54);
+			if (PtInRect(&rButtonSm, pCursor))
 			{
-				if (!bLMBOld) bF15BtnP=TRUE;
-				if (bF15BtnP) pDDBackBuffer->Blt(&rButton, pDDF15ButtonPressed, NULL, DDBLT_WAIT, NULL);
+				if (bLMB)
+				{
+					if (!bLMBOld) bF15BtnP=TRUE;
+					if (bF15BtnP) pDDBackBuffer->Blt(&rButton, pDDF15ButtonPressed, NULL, DDBLT_WAIT, NULL);
+					else pDDBackBuffer->Blt(&rButton, pDDF15Button, NULL, DDBLT_WAIT, NULL);
+				}
 				else pDDBackBuffer->Blt(&rButton, pDDF15Button, NULL, DDBLT_WAIT, NULL);
 			}
 			else pDDBackBuffer->Blt(&rButton, pDDF15Button, NULL, DDBLT_WAIT, NULL);
-		}
-		else pDDBackBuffer->Blt(&rButton, pDDF15Button, NULL, DDBLT_WAIT, NULL);
-		if (PtInRect(&rButton,pCursor)&&bF15BtnPOld&&(!bLMB))
-		{		
-			if (!add)
-			{
-				Struct=sfirst;
-				while (!Struct->Selected()) Struct=Struct->next;
-				AddUnit(LWU_AIR, LWU_F15, Struct,1);
-				add=1;
+			if (PtInRect(&rButton,pCursor)&&bF15BtnPOld&&(!bLMB))
+			{		
+				if (!add)
+				{
+					Struct=sfirst;
+					while (!Struct->Selected()) Struct=Struct->next;
+					if (lMoneyPlayer>=F15_PRICE)
+					{
+						Struct->BuildUnit(LWU_F15);
+						lMoneyPlayer-=F15_PRICE;
+					}
+					add=1;
+				}
 			}
+			else add=0;
 		}
-		else add=0;
 	}
 	else if (iStructSelType==CCENTER)
 	{
-		//Add Command Center Button
-		SetRect(&rButton,715,130,715+80,130+60);
-		SetRect(&rButtonSm,715,130,715+80,130+54);
-		if (PtInRect(&rButtonSm, pCursor))
+		RECT rBuild;
+		
+		Struct=sfirst;
+		while (!Struct->Selected()) Struct=Struct->next;
+		if (Struct->Building())
 		{
-			if (bLMB)
+			SetRect(&rBuild, 710, 110,710+88, 110+56);
+			pDDBackBuffer->Blt(&rBuild, pDDBuildStruct, NULL, DDBLT_WAIT, NULL);
+			pDDBackBuffer->GetDC(&hdc);
+			SelectObject(hdc,GetStockObject(GRAY_BRUSH));
+			Rectangle(hdc,  715, 110+55,715+(int) (Struct->PercentageComplete()*0.8), 110+55+10);
+			pDDBackBuffer->ReleaseDC(hdc);
+		}
+		else if (Struct->WaitingToSelect()||Struct->SBComplete())
+		{
+			SetRect(&rBuild, 710, 110,710+88, 110+56);
+			pDDBackBuffer->Blt(&rBuild, pDDStructComplete, NULL, DDBLT_WAIT, NULL);
+
+			//Add Place button
+			SetRect(&rButton,715,170,715+80,170+35);
+			if (PtInRect(&rButton, pCursor))
 			{
-				if (!bLMBOld) bCCenterBP=TRUE;
-				if (bCCenterBP) pDDBackBuffer->Blt(&rButton, pDDCCenterButtonPressed, NULL, DDBLT_WAIT, NULL);
+				if (bLMB)
+				{
+					if (!bLMBOld) bPlaceBP=TRUE;
+					if (bPlaceBP) pDDBackBuffer->Blt(&rButton, pDDPlaceButtonP, NULL, DDBLT_WAIT, NULL);
+					else pDDBackBuffer->Blt(&rButton, pDDPlaceButton, NULL, DDBLT_WAIT, NULL);
+				}
+				else pDDBackBuffer->Blt(&rButton, pDDPlaceButtonHover, NULL, DDBLT_WAIT, NULL);
+			}
+			else pDDBackBuffer->Blt(&rButton, pDDPlaceButton, NULL, DDBLT_WAIT, NULL);
+			if (PtInRect(&rButton,pCursor)&&bPlaceBPOld&&(!bLMB))
+			{
+				iCreateBuilding=Struct->GetUnitType()-2;
+				Struct->PlaceBuilding();
+			}
+		}
+		else
+		{
+			//Add Command Center Button
+			SetRect(&rButton,715,130,715+80,130+60);
+			SetRect(&rButtonSm,715,130,715+80,130+54);
+			if (PtInRect(&rButtonSm, pCursor))
+			{
+				if (bLMB)
+				{
+					if (!bLMBOld) bCCenterBP=TRUE;
+					if (bCCenterBP) pDDBackBuffer->Blt(&rButton, pDDCCenterButtonPressed, NULL, DDBLT_WAIT, NULL);
+					else pDDBackBuffer->Blt(&rButton, pDDCCenterButton, NULL, DDBLT_WAIT, NULL);
+				}
 				else pDDBackBuffer->Blt(&rButton, pDDCCenterButton, NULL, DDBLT_WAIT, NULL);
 			}
 			else pDDBackBuffer->Blt(&rButton, pDDCCenterButton, NULL, DDBLT_WAIT, NULL);
-		}
-		else pDDBackBuffer->Blt(&rButton, pDDCCenterButton, NULL, DDBLT_WAIT, NULL);
-		if (PtInRect(&rButton,pCursor)&&bCCenterBPOld&&(!bLMB)) iCreateBuilding=1;
+			if (PtInRect(&rButton,pCursor)&&bCCenterBPOld&&(!bLMB)) 
+				if (lMoneyPlayer>=CCENTER_PRICE)
+				{
+					Struct->BuildUnit(3);
+					lMoneyPlayer-=CCENTER_PRICE;
+				}
 
-		//Add OilPlant Button
-		SetRect(&rButton,715,185,715+80,185+60);
-		SetRect(&rButtonSm,715,185,715+80,185+54);
-		if (PtInRect(&rButtonSm, pCursor))
-		{
-			if (bLMB)
+			//Add OilPlant Button
+			SetRect(&rButton,715,185,715+80,185+60);
+			SetRect(&rButtonSm,715,185,715+80,185+54);
+			if (PtInRect(&rButtonSm, pCursor))
 			{
-				if (!bLMBOld) bOPBP=TRUE;
-				if (bOPBP) pDDBackBuffer->Blt(&rButton, pDDOilPlantButtonPressed, NULL, DDBLT_WAIT, NULL);
+				if (bLMB)
+				{
+					if (!bLMBOld) bOPBP=TRUE;
+					if (bOPBP) pDDBackBuffer->Blt(&rButton, pDDOilPlantButtonPressed, NULL, DDBLT_WAIT, NULL);
+					else pDDBackBuffer->Blt(&rButton, pDDOilPlantButton, NULL, DDBLT_WAIT, NULL);
+				}
 				else pDDBackBuffer->Blt(&rButton, pDDOilPlantButton, NULL, DDBLT_WAIT, NULL);
 			}
 			else pDDBackBuffer->Blt(&rButton, pDDOilPlantButton, NULL, DDBLT_WAIT, NULL);
-		}
-		else pDDBackBuffer->Blt(&rButton, pDDOilPlantButton, NULL, DDBLT_WAIT, NULL);
-		if (PtInRect(&rButton,pCursor)&&bOPBPOld&&(!bLMB)) iCreateBuilding=2;
+			if (PtInRect(&rButton,pCursor)&&bOPBPOld&&(!bLMB)) 
+				if (lMoneyPlayer>=OILPLANT_PRICE)
+				{
+					Struct->BuildUnit(4);
+					lMoneyPlayer-=OILPLANT_PRICE;
+				}
 
-		//Add Airport Button
-		SetRect(&rButton,715,240,715+80,240+60);
-		SetRect(&rButtonSm,715,240,715+80,240+54);
-		if (PtInRect(&rButtonSm, pCursor))
-		{
-			if (bLMB)
+			//Add Airport Button
+			SetRect(&rButton,715,240,715+80,240+60);
+			SetRect(&rButtonSm,715,240,715+80,240+54);
+			if (PtInRect(&rButtonSm, pCursor))
 			{
-				if (!bLMBOld) bAirBP=TRUE;
-				if (bAirBP) pDDBackBuffer->Blt(&rButton, pDDAirportButtonPressed, NULL, DDBLT_WAIT, NULL);
+				if (bLMB)
+				{
+					if (!bLMBOld) bAirBP=TRUE;
+					if (bAirBP) pDDBackBuffer->Blt(&rButton, pDDAirportButtonPressed, NULL, DDBLT_WAIT, NULL);
+					else pDDBackBuffer->Blt(&rButton, pDDAirportButton, NULL, DDBLT_WAIT, NULL);
+				}
 				else pDDBackBuffer->Blt(&rButton, pDDAirportButton, NULL, DDBLT_WAIT, NULL);
 			}
 			else pDDBackBuffer->Blt(&rButton, pDDAirportButton, NULL, DDBLT_WAIT, NULL);
-		}
-		else pDDBackBuffer->Blt(&rButton, pDDAirportButton, NULL, DDBLT_WAIT, NULL);
-		if (PtInRect(&rButton,pCursor)&&bAirBPOld&&(!bLMB)) iCreateBuilding=3;
+			if (PtInRect(&rButton,pCursor)&&bAirBPOld&&(!bLMB)) 
+				if (lMoneyPlayer>=AIRPORT_PRICE)
+				{
+					Struct->BuildUnit(5);
+					lMoneyPlayer-=AIRPORT_PRICE;
+				}
 
-		//Add Pyramid Button
-		SetRect(&rButton,715,295,715+80,295+60);
-		SetRect(&rButtonSm,715,295,715+80,295+54);
-		if (PtInRect(&rButtonSm, pCursor))
-		{
-			if (bLMB)
+			//Add Pyramid Button
+			SetRect(&rButton,715,295,715+80,295+60);
+			SetRect(&rButtonSm,715,295,715+80,295+54);
+			if (PtInRect(&rButtonSm, pCursor))
 			{
-				if (!bLMBOld) bPyBP=TRUE;
-				if (bPyBP) pDDBackBuffer->Blt(&rButton, pDDPyramidButtonPressed, NULL, DDBLT_WAIT, NULL);
+				if (bLMB)
+				{
+					if (!bLMBOld) bPyBP=TRUE;
+					if (bPyBP) pDDBackBuffer->Blt(&rButton, pDDPyramidButtonPressed, NULL, DDBLT_WAIT, NULL);
+					else pDDBackBuffer->Blt(&rButton, pDDPyramidButton, NULL, DDBLT_WAIT, NULL);
+				}
 				else pDDBackBuffer->Blt(&rButton, pDDPyramidButton, NULL, DDBLT_WAIT, NULL);
 			}
 			else pDDBackBuffer->Blt(&rButton, pDDPyramidButton, NULL, DDBLT_WAIT, NULL);
+			if (PtInRect(&rButton,pCursor)&&bPyBPOld&&(!bLMB)) 
+				if (lMoneyPlayer>=PYRAMID_PRICE)
+				{
+					Struct->BuildUnit(6);
+					lMoneyPlayer-=PYRAMID_PRICE;
+				}
 		}
-		else pDDBackBuffer->Blt(&rButton, pDDPyramidButton, NULL, DDBLT_WAIT, NULL);
-		if (PtInRect(&rButton,pCursor)&&bPyBPOld&&(!bLMB)) iCreateBuilding=4;
-
 	}
+
+	Struct=sfirst;
+	while (Struct)
+	{
+		if (Struct->GetType()==4)
+			if (Struct->UBComplete()) AddUnit(LWU_AIR, Struct->GetUnitType(), Struct,Struct->GetPlayer());
+		if (Struct->GetType()==1)
+			if (Struct->UBComplete()) Struct->WaitSelect();
+		Struct=Struct->next;
+	}
+
 		
 	int money_x=600, money_y=5;
 	SetRect(&DestRect, money_x, money_y, money_x+20, money_y+20);
@@ -1437,6 +1640,7 @@ BOOL GameEngine::Update(int Reserved)
 	bOPBPOld=bOPBP;
 	bAirBPOld=bAirBP;
 	bPyBPOld=bPyBP;
+	bPlaceBPOld=bPlaceBP;
 
 	pDDPrimary->Flip(NULL, DDFLIP_WAIT);
 	
@@ -1712,6 +1916,7 @@ void GameEngine::AddUnit(int iType, int iSubType, CStructure *Parent, int iPlaye
 	if (!first)
 	{
 		first=new CUnitPlane;
+		first->SetMapSize(Map.GetSizeX(),Map.GetSizeY());
 		first->SetParent(Parent);
 		first->SetSubType(iSubType);
 		first->Select(FALSE);
@@ -1722,6 +1927,7 @@ void GameEngine::AddUnit(int iType, int iSubType, CStructure *Parent, int iPlaye
 	else
 	{
 		temp=new CUnitPlane;
+		temp->SetMapSize(Map.GetSizeX(),Map.GetSizeY());
 		temp->SetParent(Parent);
 		temp->SetSubType(iSubType);
 		temp->SetPlayer(iPlayer);
@@ -1737,23 +1943,25 @@ void GameEngine::AddUnit(int iType, int iSubType, CStructure *Parent, int iPlaye
 void GameEngine::AddMissile(CUnit *Parent, CUnit *uDest, CStructure *sDest, int iDestType)
 {
 	if (!mfirst)
-	{	mfirst=(CMissile *) new CMissile;
+	{	mfirst = new CMissile;
 	
 		mfirst->SetPosition(Parent->GetX(), Parent->GetY());
+		if (Parent->GetSubType()==2) mfirst->SetStrength(34);
 		if (iDestType==UNIT)
-			((CMissile *)mfirst)->SetTarget(uDest, NULL, 1);
+			mfirst->SetTarget(uDest, NULL, 1);
 		else if (iDestType==STRUCT)
-			((CMissile *)mfirst)->SetTarget(NULL, sDest,2);
+			mfirst->SetTarget(NULL, sDest,2);
 		mfirst->next=NULL;
 	}
 	else
 	{
-		mtemp=(CMissile *) new CMissile;
+		mtemp = new CMissile;
 		mtemp->SetPosition(Parent->GetX(), Parent->GetY());
+		if (Parent->GetSubType()==2) mtemp->SetStrength(34);
 		if (iDestType==UNIT)
-			((CMissile *)mtemp)->SetTarget(uDest, NULL, 1);
+			mtemp->SetTarget(uDest, NULL, 1);
 		else if (iDestType==STRUCT)
-			((CMissile *)mtemp)->SetTarget(NULL, sDest,2);
+			mtemp->SetTarget(NULL, sDest,2);
 		mtemp->next=mfirst;
 		mfirst=mtemp;
 	}
@@ -1922,31 +2130,26 @@ GameEngine::Load(char *filename)
 	HDC hdc;
 	int i;
 	
-	CStartX=15; CStartY=15;
-	lMoneyPlayer=lMoneyComp=500;
+	lMoneyPlayer=lMoneyComp=600;
 	CurentX = CurentY = iStructSelType = iCreateBuilding = 0;
 	IsSelecting = WaitSelection = FALSE;
 	bLMBFirst = bLMBOld = bRMBOld = FALSE;
-	MenuButtonPressed = MenuButtonPressedOld=FALSE;
+	MenuButtonPressed = MenuButtonPressedOld=bPlaceBP=bPlaceBPOld=FALSE;
 	PlaneButtonPressed = PlaneButtonPressedOld = bF15BtnP = bF15BtnPOld = FALSE;
 	bCCenterBP = bCCenterBPOld = bOPBP = bOPBPOld = bAirBP = bAirBPOld = bPyBP = bPyBPOld = FALSE;
 	first=NULL;
 	mfirst=NULL;
 
 	Map.Load(filename);
+	Map.GetStartPositions(PStartX, PStartY, CStartX, CStartY);
 	LoadTerrainTiles();	
-	
+		
 	Struct=new CStructCCenter;
-	Struct->SetPosition(160,160,&Map);
+	Struct->SetPosition(PStartY*160,PStartX*160,&Map);
 	Struct->SetPlayer(1);
 	sfirst=Struct;
 	stemp=new CStructCCenter;
-	stemp->SetPosition(1200,1200,&Map);
-	stemp->SetPlayer(2);
-	Struct->next=stemp;
-	Struct=stemp;
-	stemp=new CStructAirport;
-	stemp->SetPosition(1440,1200,&Map);
+	stemp->SetPosition(CStartY*160,CStartX*160,&Map);
 	stemp->SetPlayer(2);
 	Struct->next=stemp;
 	stemp->next=NULL;
@@ -2230,6 +2433,36 @@ GameEngine::Load(char *filename)
 	bmp.Draw(hdc);
 	pDDMoney->ReleaseDC(hdc);
 
+	bmp.Load("data\\interface\\buildunit.bmp");
+	pDDBuildUnit->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDBuildUnit->ReleaseDC(hdc);
+	
+	bmp.Load("data\\interface\\buildstruct.bmp");
+	pDDBuildStruct->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDBuildStruct->ReleaseDC(hdc);
+
+	bmp.Load("data\\interface\\struct_complete.bmp");
+	pDDStructComplete->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDStructComplete->ReleaseDC(hdc);
+
+	bmp.Load("data\\interface\\placeb.bmp");
+	pDDPlaceButton->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDPlaceButton->ReleaseDC(hdc);
+
+	bmp.Load("data\\interface\\placebp.bmp");
+	pDDPlaceButtonP->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDPlaceButtonP->ReleaseDC(hdc);
+
+	bmp.Load("data\\interface\\placebhover.bmp");
+	pDDPlaceButtonHover->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDPlaceButtonHover->ReleaseDC(hdc);
+
 	pDDErrorOKP->GetDC(&hdc);
 	bmpEOK.Draw(hdc);
 	pDDErrorOKP->ReleaseDC(hdc);
@@ -2259,6 +2492,29 @@ GameEngine::Load(char *filename)
 		if (FAILED(bmp.Draw(hdc))) return FALSE;
 		pDDSprite120x90[i]->ReleaseDC(hdc);
 	}
+
+	for (i=0; i<=32; i++)
+	{
+		char buffer[256];
+		sprintf(buffer, "data\\Units\\Plane-2\\plane%d.bmp", i);
+		bmp.Load(buffer);
+
+		pDDSprite120x90C[i]->GetDC(&hdc);
+		if (FAILED(bmp.Draw(hdc))) return FALSE;
+		pDDSprite120x90C[i]->ReleaseDC(hdc);
+	}
+
+	for (i=33; i<=65; i++)
+	{
+		char buffer[256];
+		sprintf(buffer, "data\\Units\\F15-2\\plane%d.bmp", i-33);
+		bmp.Load(buffer);
+
+		pDDSprite120x90C[i]->GetDC(&hdc);
+		if (FAILED(bmp.Draw(hdc))) return FALSE;
+		pDDSprite120x90C[i]->ReleaseDC(hdc);
+	}
+
 
 	for (i=66; i<=80; i++)
 	{
@@ -2353,8 +2609,8 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 	switch (iMsg)
 	{
 	case WM_CREATE:
-		//PlayFile("data\\Video\\Intro.avi", hwnd);
-		SendMessage(hwnd, WM_BEGINGAME, 0,0);
+		PlayFile("data\\Video\\Intro.avi", hwnd);
+		//SendMessage(hwnd, WM_BEGINGAME, 0,0);
 		return 0;
 
 	case WM_BEGINGAME:
@@ -2705,6 +2961,11 @@ BOOL CreateGameOffscreenSurfaces()
 		pDD7->CreateSurface(&Offscreen,&pDDSprite120x90[i],NULL);
 		pDDSprite120x90[i]->SetColorKey(DDCKEY_SRCBLT,&key);
 	}
+	for (i = 0; i <= 65; i++)
+	{
+		pDD7->CreateSurface(&Offscreen,&pDDSprite120x90C[i],NULL);
+		pDDSprite120x90C[i]->SetColorKey(DDCKEY_SRCBLT,&key);
+	}
 
 	Offscreen.dwWidth = 300;
 	Offscreen.dwHeight = 300;
@@ -2847,6 +3108,21 @@ BOOL CreateGameOffscreenSurfaces()
 	Offscreen.dwWidth = Offscreen.dwHeight = 20;
 	pDD7->CreateSurface(&Offscreen, &pDDMoney, NULL);;
 
+	Offscreen.dwWidth = 80;
+	Offscreen.dwHeight = 55;
+	pDD7->CreateSurface(&Offscreen, &pDDBuildUnit, NULL);
+
+	Offscreen.dwWidth = 88;
+	Offscreen.dwHeight = 56;
+	pDD7->CreateSurface(&Offscreen, &pDDBuildStruct, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDStructComplete, NULL);
+
+	Offscreen.dwWidth = 80;
+	Offscreen.dwHeight = 35;
+	pDD7->CreateSurface(&Offscreen, &pDDPlaceButton, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDPlaceButtonP, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDPlaceButtonHover, NULL);
+
 	return TRUE;
 }
 
@@ -2856,6 +3132,12 @@ void DirectDrawUnInit(int iType)
 	
 	if (iType==UNINIT_GAME)
 	{
+		RELEASE(pDDPlaceButtonHover);
+		RELEASE(pDDPlaceButtonP);
+		RELEASE(pDDPlaceButton);
+		RELEASE(pDDStructComplete);
+		RELEASE(pDDBuildStruct);
+		RELEASE(pDDBuildUnit);
 		RELEASE(pDDMoney);
 		RELEASE(pDDLoseMessage);
 		RELEASE(pDDWinMessage);
@@ -2918,6 +3200,8 @@ void DirectDrawUnInit(int iType)
 			RELEASE(pDDMissile[i]);
 		for (i=14; i>=0; i--)
 			RELEASE(pDDExplosionBig[i]);
+		for (i=65; i>=0; i--)
+			RELEASE(pDDSprite120x90C[i]);
 		for (i=80; i>=0; i--)
 			RELEASE(pDDSprite120x90[i]);
 		for (i=MAX_TILES-1; i>=0; i--)
@@ -3208,8 +3492,8 @@ BOOL StartGame(HWND hwnd)
 	CoCreateInstance(CLSID_FilterGraph, NULL, CLSCTX_INPROC_SERVER, IID_IGraphBuilder, (void **)&pigbMusic);
 	pigbMusic->QueryInterface(IID_IMediaControl, (void **)&pimcMusic);
 	pigbMusic->QueryInterface(IID_IMediaEventEx, (void **)&pimexMusic);
-	/*Music=1;
-	PlayMusic("data\\music\\cello.mp3");*/
+	Music=1;
+	PlayMusic("data\\music\\cello.mp3");
 
 	while (UpdateGame(hwnd));
 

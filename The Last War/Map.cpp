@@ -47,6 +47,11 @@ void CMap::Load(char *filename)
 				Free[i*2+1][j*2+1]=1;
 			}
 		}
+
+	fread(&PStartX,sizeof(BYTE),1,in);
+	fread(&PStartY,sizeof(BYTE),1,in);
+	fread(&CStartX,sizeof(BYTE),1,in);
+	fread(&CStartY,sizeof(BYTE),1,in);
 	
 	/*FILE *fout; 
 	fout = fopen("c:\\debug.txt", "wt");
@@ -75,6 +80,12 @@ BYTE CMap::GetTerrainType(BYTE i, BYTE j)
 		return Terrain[i][j];
 	return 0;
 }
+
+void CMap::GetStartPositions(BYTE &px, BYTE &py, BYTE &cx, BYTE &cy)
+{
+	px=PStartX; py=PStartY; cx=CStartX, cy=CStartY;
+}
+
 
 BOOL CMap::Available(BYTE i, BYTE j)
 {

@@ -13,14 +13,14 @@ CUnit::CUnit()
 {
 	iExplodeFrame=CurrentFrame=iTargetType=iShoot=0;
 	iLife=100;
-	bIsTurning=bIsSelected=bIsAttacked=FALSE;
+	bIsTurning=bIsSelected=bIsAttacked=bComputerAttack=FALSE;
 }
 
 void CUnit::SetParent(CStructure *p)
 {
 	Parent=p;
 	SetPosition(Parent->GetX(),Parent->GetY());
-	SetDestination(PosX+150+rand()%10,PosY);
+	SetDestination(PosX+150+rand()%100,PosY+rand()%20);
 }
 
 CUnit::~CUnit()
@@ -144,6 +144,15 @@ int CUnit::Update()
 		}
 	}
 	return 0;
+}
+
+void CUnit::SetDestination(int iDestX, int iDestY)
+{
+	DestX=iDestX; DestY=iDestY;
+	if (DestX<0) DestX=0;
+	if (DestY<0) DestY=0;
+	if (DestX>=160*iMapSizeX-120) DestX=160*iMapSizeX-120;
+	if (DestY>=160*iMapSizeY-120) DestY=160*iMapSizeY-120;
 }
 
 BOOL CUnit::InRange()

@@ -14,8 +14,9 @@ CMissile::CMissile()
 {
 	StructTarget=NULL;
 	UnitTarget=NULL;
-	iTargetType=0;
+	iTargetType=iFrame=0;
 	iDestroy=0;
+	iStrength=20;
 }
 
 CMissile::~CMissile()
@@ -34,6 +35,7 @@ int CMissile::Update()
 {
 	int difx, dify;
 	double r,x,y;
+
 	if (iTargetType==1) if (UnitTarget->GetExplodeFrame()) iDestroy=1;
 	if (iTargetType==2) if (StructTarget->GetExplodeFrame()) iDestroy=1;
 	if (iTargetType)
@@ -67,28 +69,20 @@ int CMissile::Update()
 		{
 			x=10; y=0;
 		}
-		if (difx>=10)
-		{
-			if (DestX>PosX)
-			{
-				PosX+=(int)x;
-			}
-			if (DestX<PosX)
-			{
-				PosX-=(int)x;
-			}
-		}
-		if (dify>=10)
-		{
-			if (DestY>PosY) 
-			{
-				PosY+=(int)y;
-			}
-			if (DestY<PosY) 
-			{
-				PosY-=(int)y;
-			}
-		}
+		if (DestX<PosX) x=-x;
+		if (DestY<PosY) y=-y;
+
+		PosX+=(int)x;
+		PosY+=(int)y;
+
+		if ((x>0)&&(y>0)) iFrame=5;
+		if ((x>0)&&(y<0)) iFrame=6;
+		if ((x<0)&&(y>0)) iFrame=4;
+		if ((x<0)&&(y<0)) iFrame=7;
+		if ((x==0)&&(y>0)) iFrame=1;
+		if ((x==0)&&(y<0)) iFrame=0;
+		if ((x<0)&&(y==0)) iFrame=2;
+		if ((x>0)&&(y==0)) iFrame=3;
 
 		if (DestX>PosX) difx=DestX-PosX;
 		else difx=PosX-DestX;
@@ -97,8 +91,8 @@ int CMissile::Update()
 
 		if ((difx<=10)&&(dify<=10)) 
 		{
-			if (iTargetType==1) UnitTarget->Damage(20);
-			else if (iTargetType==2) StructTarget->Damage(20);
+			if (iTargetType==1) UnitTarget->Damage(iStrength);
+			else if (iTargetType==2) StructTarget->Damage(iStrength);
 			iDestroy=1;
 		}
 	}
