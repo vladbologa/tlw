@@ -59,7 +59,6 @@ RECT ScreenSize;
 
 CBmp bmp;
 CBmp MenuBack, MINewGame[2], MIExit[2], MILoadGame[2], MIOptions[2];
-CBmp ComputerAnim[51];
 CBmp Load, Cursor;
 
 LONG      evCode;
@@ -68,9 +67,9 @@ LONG      evParam2;
 
 int INIT_ERROR=0;
 char buffer[256];
-int NewGameCounter = 0;
 
 int MouseSensitivity = 200;
+int CurX = 320, CurY = 160;
 int iResX, iResY;
 
 //DirectX & DirectX Media COM Objects
@@ -93,13 +92,14 @@ LPDIRECTDRAWSURFACE7 pDDOffscreen = NULL;
 LPDIRECTDRAWSURFACE7 pDDPanel = NULL;
 LPDIRECTDRAWSURFACE7 pDDTile[MAX_TILES];
 LPDIRECTDRAWSURFACE7 pDDMenuBegin, pDDMenuOpt;
+LPDIRECTDRAWSURFACE7 pDDMenuSM, pDDSMCreate, pDDSMJoin;
 LPDIRECTDRAWSURFACE7 pDDMenuBeginTXT, pDDMenuBeginTXTSel, pDDMenuOptTXTSel, pDDMenuExitTXTSel;
 LPDIRECTDRAWSURFACE7 pDDSprite120x90[66];
 LPDIRECTDRAWSURFACE7 pDDSprite185x160;
 LPDIRECTDRAWSURFACE7 pDDSprite120x100[4];
 LPDIRECTDRAWSURFACE7 pDDSprite170x160;
 LPDIRECTDRAWSURFACE7 pDDUnitSelection;
-LPDIRECTDRAWSURFACE7 pDDCCenterSelected;
+LPDIRECTDRAWSURFACE7 pDDCCenterSelected, pDDCCenterMask;
 LPDIRECTDRAWSURFACE7 pDDMenuButtonPressed, pDDMenuButtonOver;
 LPDIRECTDRAWSURFACE7 pDDPlaneButton, pDDPlaneButtonPressed;
 LPDIRECTDRAWSURFACE7 pDDF15Button, pDDF15ButtonPressed;
@@ -110,7 +110,8 @@ BOOL StartGame(HWND);
 BOOL DirectDrawInit(int,int,HWND);
 BOOL DirectInputInit(HWND);
 BOOL TileInScreen(RECT);
-BOOL UpdateMainMenu(HWND);
+BOOL UpdateMainMenu();
+BOOL UpdateStartMenu(HWND);
 BOOL CreateGameOffscreenSurfaces();
 BOOL CreateMenuOffscreenSurfaces();
 void DirectDrawUnInit(int);
@@ -280,25 +281,23 @@ BOOL GameEngine::Update(int Reserved)
 
 	if (WaitSelection&&!bLeftBtnPressed)
 	{
-		BOOL Usel=FALSE,Ssel=FALSE;
+		BOOL usel = FALSE;
+		RECT r_Structure, r_Unit;
+		int CursorOnUnit = 0, CursorOnStructure = 0;
 		POINT pt;
-		RECT r_Structure;
 		
+		pt.x=mouse_x;
+		pt.y=mouse_y;
+
 		Unit=first;
 		if (Unit) while (Unit->next) Unit=Unit->next;
 		while (Unit)
 		{
-			RECT r_Unit;
-
-			pt.x=mouse_x;
-			pt.y=mouse_y;
-
 			r_Unit.top=Unit->GetY()-CurentY;
 			r_Unit.left=Unit->GetX()-CurentX;
 			r_Unit.bottom=r_Unit.top+90;
 			r_Unit.right=r_Unit.left+120;
 
-			int CursorOnUnit=0;
 			if (PtInRect(&r_Unit, pt))
 			{
 				int relx, rely, poz;
@@ -308,6 +307,7 @@ BOOL GameEngine::Update(int Reserved)
 				
 				relx=mouse_x-r_Unit.left;
 				rely=mouse_y-r_Unit.top;
+				if (Unit->GetSubType()==2) frame+=33;
 				if (pDDSprite120x90[frame]->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
 				{
 					PBYTE mem=(PBYTE) sDesc.lpSurface;
@@ -320,10 +320,10 @@ BOOL GameEngine::Update(int Reserved)
 			
 			if (CursorOnUnit)
 			{ 	
-				if (!Usel)
+				if (!usel)
 				{
 					Unit->Select(TRUE);
-					Usel=TRUE;
+					usel=TRUE;
 					iNrSel++;
 				}
 				else Unit->Select(FALSE);
@@ -332,15 +332,30 @@ BOOL GameEngine::Update(int Reserved)
 			Unit=Unit->prev;
 		}
 		
-		pt.x=mouse_x;
-		pt.y=mouse_y;
-
 		r_Structure.top=Struct->GetY()-CurentY;
 		r_Structure.left=Struct->GetX()-CurentX;
 		r_Structure.bottom=r_Structure.top + 160;
 		r_Structure.right=r_Structure.left + 185;
 
-		if (PtInRect(&r_Structure, pt)&&(!iNrSel))
+		if (PtInRect(&r_Structure, pt))
+		{
+			int relx, rely, poz;
+			DDSURFACEDESC2 sDesc;
+			sDesc.dwSize=sizeof(sDesc);			
+				
+			relx=mouse_x-r_Structure.left;
+			rely=mouse_y-r_Structure.top;
+			if (pDDCCenterMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+			{
+				PBYTE mem=(PBYTE) sDesc.lpSurface;
+				poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+				if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
+					pDDCCenterMask->Unlock(NULL);
+			}
+		}
+			
+		if (CursorOnStructure&&(!iNrSel))
 		{
 			Struct->Select(TRUE);
 			StructSelType=Struct->GetType();
@@ -562,8 +577,7 @@ void GameEngine::AddUnit(int iType, int iSubType, CStructure *Parent)
 	if (!first)
 	{
 		first=(CUnitPlane *) new CUnitPlane;
-		first->SetPosition(320,200);
-		first->SetDestination(320,200);
+		first->SetParent(Parent);
 		first->SetSubType(iSubType);
 		first->Select(FALSE);
 		first->next=NULL;
@@ -572,8 +586,7 @@ void GameEngine::AddUnit(int iType, int iSubType, CStructure *Parent)
 	else
 	{
 		temp=(CUnitPlane *) new CUnitPlane;
-		temp->SetPosition(320,200);
-		temp->SetDestination(320,200);
+		temp->SetParent(Parent);
 		temp->SetSubType(iSubType);
 		temp->Select(FALSE);
 		Unit=first;
@@ -682,101 +695,96 @@ void GameEngine::ShowMouse()
 
 GameEngine::Load(int Level, int Reserved)
 {
-	CBmp dBar, Pyramid, lball[4], Uselect, Sselect, USprite, SSprite, MenuButton;
+	CBmp bmp, lball[4];
 	HDC hdc;
 	
-	CurentX = CurentY = StructSelType = 0;
-	IsSelecting=FALSE;
-	WaitSelection=FALSE;	
-	Map.Load(Level);
-	LoadTerrainTiles();	
+	UnitCount = CurentX = CurentY = StructSelType = 0;
+	IsSelecting = WaitSelection = FALSE;
 	fLMBPressed=oldLMBPressed=oldRMBPressed=FALSE;
 	MenuButtonPressed=PlaneButtonPressed=PlaneButtonPressedOld=bF15BtnP=bF15BtnPOld=FALSE;
+
+	Map.Load(Level);
+	LoadTerrainTiles();	
 
 	Struct=(CStructCCenter *) new CStructCCenter;
 	Struct->SetPosition(160,160);
 	Struct->next=NULL;
 	Struct->prev=NULL;
 
-	first=(CUnitPlane *) new CUnitPlane;
-	first->SetPosition(400,300);
-	first->SetDestination(600,400);
-	first->SetSubType(LWU_PLANE);
-	first->Select(TRUE);
-	first->next=NULL;
-	first->prev=NULL;
-	UnitCount=1;
-
 	lball[0].Load("data\\Structures\\ball1.bmp");
 	lball[1].Load("data\\Structures\\ball2.bmp");
 	lball[2].Load("data\\Structures\\ball3.bmp");
 	lball[3].Load("data\\Structures\\ball4.bmp");
 
-	Uselect.Load("data\\Interface\\Uselect.bmp");
-	Sselect.Load("data\\Structures\\ccentersel.bmp");
-	dBar.Load("data\\Interface\\lpanel.bmp");
-	Pyramid.Load("data\\Structures\\pyramid.bmp");
-
-	MenuButton.Load("data\\interface\\mb01.bmp");
+	bmp.Load("data\\interface\\mb01.bmp");
 	pDDMenuButtonPressed->GetDC(&hdc);
-	MenuButton.Draw(hdc);
+	bmp.Draw(hdc);
 	pDDMenuButtonPressed->ReleaseDC(hdc);
 
-	MenuButton.Load("data\\interface\\mb02.bmp");
+	bmp.Load("data\\interface\\mb02.bmp");
 	pDDMenuButtonOver->GetDC(&hdc);
-	MenuButton.Draw(hdc);
+	bmp.Draw(hdc);
 	pDDMenuButtonOver->ReleaseDC(hdc);
 
-	MenuButton.Load("data\\interface\\pb01.bmp");
+	bmp.Load("data\\interface\\pb01.bmp");
 	pDDPlaneButton->GetDC(&hdc);
-	MenuButton.Draw(hdc);
+	bmp.Draw(hdc);
 	pDDPlaneButton->ReleaseDC(hdc);
 
-	MenuButton.Load("data\\interface\\pb02.bmp");
+	bmp.Load("data\\interface\\pb02.bmp");
 	pDDPlaneButtonPressed->GetDC(&hdc);
-	MenuButton.Draw(hdc);
+	bmp.Draw(hdc);
 	pDDPlaneButtonPressed->ReleaseDC(hdc);
 
-	MenuButton.Load("data\\interface\\pb01.bmp");
+	bmp.Load("data\\interface\\pb01.bmp");
 	pDDPlaneButton->GetDC(&hdc);
-	MenuButton.Draw(hdc);
+	bmp.Draw(hdc);
 	pDDPlaneButton->ReleaseDC(hdc);
 
-	MenuButton.Load("data\\interface\\fb01.bmp");
+	bmp.Load("data\\interface\\fb01.bmp");
 	pDDF15Button->GetDC(&hdc);
-	MenuButton.Draw(hdc);
+	bmp.Draw(hdc);
 	pDDF15Button->ReleaseDC(hdc);
 
-	MenuButton.Load("data\\interface\\fb02.bmp");
+	bmp.Load("data\\interface\\fb02.bmp");
 	pDDF15ButtonPressed->GetDC(&hdc);
-	MenuButton.Draw(hdc);
+	bmp.Draw(hdc);
 	pDDF15ButtonPressed->ReleaseDC(hdc);
 
-	MenuButton.Load("data\\interface\\pb02.bmp");
+	bmp.Load("data\\interface\\pb02.bmp");
 	pDDPlaneButtonPressed->GetDC(&hdc);
-	MenuButton.Draw(hdc);
+	bmp.Draw(hdc);
 	pDDPlaneButtonPressed->ReleaseDC(hdc);
 
+	bmp.Load("data\\Interface\\Uselect.bmp");
 	pDDUnitSelection->GetDC(&hdc);
-	Uselect.Draw(hdc);
+	bmp.Draw(hdc);
 	pDDUnitSelection->ReleaseDC(hdc);
 
+	bmp.Load("data\\Structures\\ccentersel.bmp");
 	pDDCCenterSelected->GetDC(&hdc);
-	Sselect.Draw(hdc);
+	bmp.Draw(hdc);
 	pDDCCenterSelected->ReleaseDC(hdc);
 
+	bmp.Load("data\\Structures\\pyramid.bmp");
 	pDDSprite170x160->GetDC(&hdc);
-	Pyramid.Draw(hdc);
+	bmp.Draw(hdc);
 	pDDSprite170x160->ReleaseDC(hdc);
 	
+	bmp.Load("data\\Interface\\lpanel.bmp");
 	pDDPanel->GetDC(&hdc);
-	dBar.Draw(hdc);
+	bmp.Draw(hdc);
 	pDDPanel->ReleaseDC(hdc);
 
-	SSprite.Load("data\\structures\\CCenter.bmp");
+	bmp.Load("data\\structures\\CCenter.bmp");
 	pDDSprite185x160->GetDC(&hdc);
-	if (FAILED(SSprite.Draw(hdc))) return FALSE;
+	if (FAILED(bmp.Draw(hdc))) return FALSE;
 	pDDSprite185x160->ReleaseDC(hdc);
+
+	bmp.Load("data\\structures\\CCenterCont.bmp");
+	pDDCCenterMask->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDCCenterMask->ReleaseDC(hdc);
 
 	for (int i=0; i<4; i++)
 	{
@@ -789,10 +797,10 @@ GameEngine::Load(int Level, int Reserved)
 	{
 		char buffer[256];
 		sprintf(buffer, "data\\Units\\Plane\\plane%d.bmp", i);
-		USprite.Load(buffer);
+		bmp.Load(buffer);
 
 		pDDSprite120x90[i]->GetDC(&hdc);
-		if (FAILED(USprite.Draw(hdc))) return FALSE;
+		if (FAILED(bmp.Draw(hdc))) return FALSE;
 		pDDSprite120x90[i]->ReleaseDC(hdc);
 	}
 
@@ -800,10 +808,10 @@ GameEngine::Load(int Level, int Reserved)
 	{
 		char buffer[256];
 		sprintf(buffer, "data\\Units\\F15\\plane%d.bmp", i-33);
-		USprite.Load(buffer);
+		bmp.Load(buffer);
 
 		pDDSprite120x90[i]->GetDC(&hdc);
-		if (FAILED(USprite.Draw(hdc))) return FALSE;
+		if (FAILED(bmp.Draw(hdc))) return FALSE;
 		pDDSprite120x90[i]->ReleaseDC(hdc);
 	}
 
@@ -1141,6 +1149,22 @@ BOOL CreateMenuOffscreenSurfaces()
 	Offscreen.dwHeight = 50;
 	pDD7->CreateSurface(&Offscreen, &pDDMenuExitTXTSel, NULL);
 
+	Offscreen.dwWidth = 123;
+	Offscreen.dwHeight = 101;
+	pDD7->CreateSurface(&Offscreen, &pDDMenuSM, NULL);
+
+	Offscreen.dwFlags = DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH;
+	Offscreen.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
+	Offscreen.dwWidth = 121;
+	Offscreen.dwHeight = 25;
+	pDD7->CreateSurface(&Offscreen, &pDDSMCreate, NULL);
+
+	Offscreen.dwFlags = DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH;
+	Offscreen.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
+	Offscreen.dwWidth = 92;
+	Offscreen.dwHeight = 25;
+	pDD7->CreateSurface(&Offscreen, &pDDSMJoin, NULL);
+
 	return TRUE;
 }
 
@@ -1173,6 +1197,7 @@ BOOL CreateGameOffscreenSurfaces()
 	Offscreen.dwWidth = 185;
 	Offscreen.dwHeight = 160;
 	pDD7->CreateSurface(&Offscreen, &pDDCCenterSelected, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDCCenterMask, NULL);
 	
 	Offscreen.dwWidth = 120;
 	Offscreen.dwHeight = 90;
@@ -1252,6 +1277,7 @@ void DirectDrawUnInit(int iType)
 		RELEASE(pDDCursor);
 		RELEASE(pDDOffscreen);
 		RELEASE(pDDUnitSelection);
+		RELEASE(pDDCCenterMask);
 		RELEASE(pDDCCenterSelected);
 		for (i=65; i>=0; i--)
 				RELEASE(pDDSprite120x90[i]);
@@ -1261,6 +1287,9 @@ void DirectDrawUnInit(int iType)
 
 	if (iType==UNINIT_MENU)
 	{
+		RELEASE(pDDSMJoin);
+		RELEASE(pDDSMCreate);
+		RELEASE(pDDMenuSM);
 		RELEASE(pDDMenuExitTXTSel);
 		RELEASE(pDDMenuOptTXTSel);
 		RELEASE(pDDMenuBeginTXTSel);
@@ -1344,18 +1373,18 @@ void DarkenScreen()
 	DDSURFACEDESC2 sDesc;
 	sDesc.dwSize=sizeof(sDesc);
 	
-	if (pDDBackBuffer->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+	if (pDDOffscreen->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
 	{
 		PBYTE mem=(PBYTE) sDesc.lpSurface;
-		for (int relx=0; relx<800;relx++)
-			for (int rely=0; rely<600; rely++)
+		for (int relx=0; relx<640;relx++)
+			for (int rely=0; rely<480; rely++)
 			{
 				int poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
 				USHORT *m=(USHORT *) &mem[poz];
 				*m= ((*m)>>1)&0x7BEF;
 			}
 
-		pDDBackBuffer->Unlock(NULL);
+		pDDOffscreen->Unlock(NULL);
 	}
 }
 
@@ -1407,24 +1436,41 @@ void LoadMenuFiles()
 	OptActual->next = OptFirst;
 	OptActual = OptFirst;
 
-	CBmp bmpBeginText, bmpBeginTextSel, bmpOptTextSel, bmpExitTextSel;
-	bmpBeginText.Load("data\\Menu\\startgame.bmp");
-	bmpBeginTextSel.Load("data\\Menu\\startgamesel.bmp");
-	bmpOptTextSel.Load("data\\Menu\\optionsel.bmp");
-	bmpExitTextSel.Load("data\\Menu\\exitsel.bmp");
-
+	CBmp bmp;
+	bmp.Load("data\\Menu\\startgame.bmp");
 	pDDMenuBeginTXT->GetDC(&hdc);
-	bmpBeginText.Draw(hdc);
+	bmp.Draw(hdc);
 	pDDMenuBeginTXT->ReleaseDC(hdc);
+
+	bmp.Load("data\\Menu\\startgamesel.bmp");
 	pDDMenuBeginTXTSel->GetDC(&hdc);
-	bmpBeginTextSel.Draw(hdc);
+	bmp.Draw(hdc);
 	pDDMenuBeginTXTSel->ReleaseDC(hdc);
+
+	bmp.Load("data\\Menu\\optionsel.bmp");
 	pDDMenuOptTXTSel->GetDC(&hdc);
-	bmpOptTextSel.Draw(hdc);
+	bmp.Draw(hdc);
 	pDDMenuOptTXTSel->ReleaseDC(hdc);
+
+	bmp.Load("data\\Menu\\exitsel.bmp");
 	pDDMenuExitTXTSel->GetDC(&hdc);
-	bmpExitTextSel.Draw(hdc);
+	bmp.Draw(hdc);
 	pDDMenuExitTXTSel->ReleaseDC(hdc);
+
+	bmp.Load("data\\Menu\\startmenu.bmp");
+	pDDMenuSM->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDMenuSM->ReleaseDC(hdc);
+
+	bmp.Load("data\\Menu\\create.bmp");
+	pDDSMCreate->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDSMCreate->ReleaseDC(hdc);
+
+	bmp.Load("data\\Menu\\join.bmp");
+	pDDSMJoin->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDSMJoin->ReleaseDC(hdc);
 }
 
 BOOL StartGame(HWND hwnd)
@@ -1458,21 +1504,22 @@ BOOL StartGame(HWND hwnd)
 	return FALSE;
 }
 
-BOOL UpdateMainMenu(HWND hwnd)
+BOOL UpdateMainMenu()
 {
-	static Selected = 0, SelOld, contor = 0, c = 0;
-	static CurX = 320, CurY = 160, CurXAnte = 320, CurYAnte = 160;
-	
+	RECT DestRect, rBeginGame, rOptions, rExit;
+	int Selected = 0;
+	static int c = 0;
 	DIMOUSESTATE dims;
 	HDC hdc;
-	BOOL InRect, MEnter = FALSE, mGo = FALSE;
-	int max = 3;
-
+	BOOL MEnter = FALSE;
+	
 	pDIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &dims);
 	pDIKeyboard->GetDeviceState(sizeof(buffer), (LPVOID)&buffer);
 	
 	CurX+=dims.lX * MouseSensitivity / 100;
 	CurY+=dims.lY * MouseSensitivity / 100;
+
+	POINT pCursor = {CurX, CurY};
 
 	pDDOffscreen->GetDC(&hdc);
 	MenuBack.Draw(hdc);
@@ -1483,9 +1530,6 @@ BOOL UpdateMainMenu(HWND hwnd)
 	pDDOffscreen->ReleaseDC(hdc);
 	pDDBackBuffer->Blt(NULL, pDDOffscreen, NULL, DDBLT_WAIT, NULL);
 
-	POINT pCursor = {CurX, CurY};
-	RECT DestRect, rBeginGame, rOptions, rExit;
-
 	SetRect(&rBeginGame, 40, 170, 40 + 230, 170 + 240);
 	SetRect(&rOptions, 380, 210, 380+165, 210 + 200);
 	SetRect(&rExit, 280, 440, 280 + 80, 440 + 30);
@@ -1495,27 +1539,15 @@ BOOL UpdateMainMenu(HWND hwnd)
 	if (CurX>640) CurX = 640;
 	if (CurY>480) CurY = 480;
 
-	if (CurXAnte<0) CurXAnte = 0;
-	if (CurYAnte<0) CurYAnte = 0;
-	if (CurXAnte>640) CurXAnte = 640;
-	if (CurYAnte>480) CurYAnte = 480;
-
-	InRect = FALSE;
-	if ((CurXAnte != CurX) || (CurYAnte != CurY))
-	{
-		Selected = 0;
-		if (PtInRect(&rBeginGame, pCursor)) Selected = 1;
-		if (PtInRect(&rOptions, pCursor)) Selected = 2;
-		if (PtInRect(&rExit, pCursor)) Selected = 3;
-	}
-	if (PtInRect(&rBeginGame, pCursor)) InRect = TRUE;
-	if (PtInRect(&rOptions, pCursor)) InRect = TRUE;
-	if ((Selected == 1)&& (InRect))
+	if (PtInRect(&rBeginGame, pCursor)) Selected = 1;
+	if (PtInRect(&rOptions, pCursor)) Selected = 2;
+	if (PtInRect(&rExit, pCursor)) Selected = 3;
+	if (Selected == 1)
 	{
 		c++;
 		if (c % 2 == 0) BGActual = BGActual->next;
 	}
-	if ((Selected == 2)&& (InRect)) OptActual = OptActual->next;
+	if (Selected == 2) OptActual = OptActual->next;
 
 	pDDMenuBegin->GetDC(&hdc);
 	BGActual->Draw(hdc);
@@ -1550,6 +1582,62 @@ BOOL UpdateMainMenu(HWND hwnd)
 		pDDBackBuffer->Blt(&DestRect, pDDMenuExitTXTSel, NULL, DDBLT_WAIT, NULL);
 	}
 
+	if (dims.rgbButtons[0] & 0x80) MEnter = TRUE;
+	if ((Selected == 1) && MEnter) 
+	{
+		State = NEW_GAME;
+		pDDOffscreen->Blt(NULL, pDDBackBuffer, NULL, DDBLT_WAIT, NULL);
+		DarkenScreen();
+	}
+	if (KEYDOWN(buffer, DIK_ESCAPE)||((Selected == 3) && MEnter)) return FALSE;
+
+	SetRect(&DestRect, CurX, CurY, CurX + 32, CurY + 32);
+	pDDBackBuffer->Blt(&DestRect, pDDCursor, NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
+
+	pDDPrimary->Flip(NULL, DDFLIP_WAIT);
+	
+	return TRUE;
+}
+
+BOOL UpdateStartMenu(HWND hwnd)
+{
+	HDC hdc;
+	DIMOUSESTATE dims;
+	RECT DestRect;
+	static int EscapeOld = 0;
+	int Selected = 0;
+	RECT rCreate, rJoin;
+	BOOL MEnter = FALSE;
+	
+	pDIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &dims);
+	pDIKeyboard->GetDeviceState(sizeof(buffer), (LPVOID)&buffer);
+	
+	CurX+=dims.lX * MouseSensitivity / 100;
+	CurY+=dims.lY * MouseSensitivity / 100;
+
+	POINT pCursor = {CurX, CurY};
+	
+	if (CurX<0) CurX = 0;
+	if (CurY<0) CurY = 0;
+	if (CurX>640) CurX = 640;
+	if (CurY>480) CurY = 480;
+
+	SetRect(&rCreate, 259, 245, 259 + 121, 245 + 25);
+	SetRect(&rJoin, 275, 280, 275 + 92, 280 + 25);
+	if (PtInRect(&rCreate, pCursor)) Selected = 1;
+	if (PtInRect(&rJoin, pCursor)) Selected = 2;
+
+	pDDBackBuffer->Blt(NULL, pDDOffscreen, NULL, DDBLT_WAIT, NULL);
+	SetRect(&DestRect, 259, 223, 259 + 123, 223 + 101);
+	pDDBackBuffer->Blt(&DestRect, pDDMenuSM, NULL, DDBLT_WAIT, NULL);
+
+	if (!KEYDOWN(buffer, DIK_ESCAPE)&&EscapeOld) State=MAIN_MENU;
+	EscapeOld=KEYDOWN(buffer, DIK_ESCAPE);
+
+	if (Selected==1)
+		pDDBackBuffer->Blt(&rCreate, pDDSMCreate, NULL, DDBLT_WAIT, NULL);
+	if (Selected==2)
+		pDDBackBuffer->Blt(&rJoin, pDDSMJoin, NULL, DDBLT_WAIT, NULL);
 	SetRect(&DestRect, CurX, CurY, CurX + 32, CurY + 32);
 	pDDBackBuffer->Blt(&DestRect, pDDCursor, NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
 
@@ -1558,7 +1646,7 @@ BOOL UpdateMainMenu(HWND hwnd)
 	if (dims.rgbButtons[0] & 0x80) MEnter = TRUE;
 	if ((Selected == 1) && MEnter) 
 	{
-		State = GAME_ACTIVE;
+		State=GAME_ACTIVE;
 		DirectDrawUnInit(UNINIT_MENU);
 		DirectDrawInit(800,600,hwnd);
 		CreateGameOffscreenSurfaces();
@@ -1568,20 +1656,21 @@ BOOL UpdateMainMenu(HWND hwnd)
 		Cursor.Draw(hdc);
 		pDDCursor->ReleaseDC(hdc);
 	}
-	if (KEYDOWN(buffer, DIK_ESCAPE)||((Selected == 3) && MEnter)) return FALSE;
-
 	return TRUE;
 }
 
 int UpdateGame(HWND hwnd)
 {
-	switch (State)
+		switch (State)
 	{
 		case GAME_ACTIVE:
 			if (!Engine.Update()) return 0;
 			break;
 		case MAIN_MENU:
-			if (!UpdateMainMenu(hwnd)) return 0;
+			if (!UpdateMainMenu()) return 0;
+			break;
+		case NEW_GAME:
+			if (!UpdateStartMenu(hwnd)) return 0;
 			break;
 	}
 	return 1;
