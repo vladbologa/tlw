@@ -1,7 +1,21 @@
 The Last War - Version History
 ------------------------------
 
-TLW 0.3.5 (under development)
+TLW 0.4.1 (under development)
+
+TLW 0.4 (may 2002)
+*ability to constr
+
+TLW 0.3.7 (may 2002)
+*menu for Command Center (4 buttons)
+*minor panel bug fixed
+
+TLW 0.3.6 (april 2002)
+*experimental missile
+
+TLW 0.3.5 (march 2002)
+*added airport (new structure)
+*bug fixes
 
 TLW 0.3.4 (feb. 2002)
 *improved unit overlapping issue
