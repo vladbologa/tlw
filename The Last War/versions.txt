@@ -2,9 +2,9 @@ The Last War - Version History
 ------------------------------
 
 TLW 0.2.4 (may 2001):
-*bugfixes
 *improved unit selection
 *rewrote lots of code (faster, better memory management)
+*bugfixes
 *new intro
 
 TLW 0.2.3 (sept. 2K):
@@ -15,6 +15,8 @@ TLW 0.2.2  (june 2K):
 
 TLW 0.2.1 (nov 1999)
 *ported to DirectX 7
+*added more planes
+*unit selection
 *graphic changes (shadows)
 
 TLW 0.2:
