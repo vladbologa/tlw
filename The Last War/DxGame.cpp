@@ -416,7 +416,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	 HWND hwnd;
 
 	 CoInitialize(NULL);
-	 hr=DirectInputCreate(hInstance,DIRECTINPUT_VERSION,&pDI,NULL);
+	 hr=DirectInput8Create(hInstance,DIRECTINPUT_VERSION,IID_IDirectInput8A, (void **) &pDI,NULL);
 	 SetRect(&ScreenSize, 0, 0, 640, 480-125);
 
 	 wndclass.cbSize        = sizeof (wndclass);
