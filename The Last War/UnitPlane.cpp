@@ -1,20 +1,20 @@
-// Unit.cpp: implementation of the CUnit class.
+// UnitPlane.cpp: implementation of the CUnitPlane class.
 //
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
-#include "Unit.h"
+#include "UnitPlane.h"
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
-CUnit::CUnit()
+
+CUnitPlane::CUnitPlane()
 {
-	CurrentFrame=0;
-	modxold=modyold=odd=0;
+
 }
 
-CUnit::~CUnit()
+CUnitPlane::~CUnitPlane()
 {
-	IsTurning=FALSE;
+
 }

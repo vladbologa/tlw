@@ -14,6 +14,7 @@
 
 class CUnit  
 {
+protected:
 	int PosX, PosY;
 	int DestX, DestY;
 	int CurrentFrame;
@@ -31,8 +32,8 @@ public:
 	void SetPosition(int iPosX, int iPosY){ PosX=iPosX; PosY=iPosY; };
 	void Select(BOOL b) {IsSelected=b;};
 	BOOL Selected() {return IsSelected;};
-	int Update();
-	CUnit *next,*prev;
+	virtual int Update();
+	//CUnit *next,*prev;
 	CUnit();
 	virtual ~CUnit();
 
