@@ -23,9 +23,6 @@
 #define WM_GRAPHNOTIFY  WM_USER+13
 #define HELPER_RELEASE(x) { if (x) x->Release(); x = NULL; }
 
-#define FIRST 0
-#define LOAD 1
-
 #define PLAYING TRUE
 #define STOPPED FALSE
 
@@ -35,7 +32,6 @@
 #define LM_DINAMIC 1
 
 #define MAX_TILES 10
-#define PLANESM 5
 
 enum GameState
 {
@@ -76,9 +72,9 @@ IVideoWindow  *pivw  = NULL;
 LPDIRECTDRAW7 pDD7 = NULL;
 LPDIRECTDRAWSURFACE7 pDDPrimary = NULL;
 LPDIRECTDRAWSURFACE7 pDDBackBuffer = NULL;
-LPDIRECTINPUT pDI = NULL;
-LPDIRECTINPUTDEVICE pDIKeyboard = NULL;
-LPDIRECTINPUTDEVICE pDIMouse = NULL;
+LPDIRECTINPUT8 pDI = NULL;
+LPDIRECTINPUTDEVICE8 pDIKeyboard = NULL;
+LPDIRECTINPUTDEVICE8 pDIMouse = NULL;
 LPDIRECTDRAWCLIPPER pDDClipper = NULL;
 
 LPDIRECTDRAWSURFACE7 pDDCursor = NULL;
@@ -87,7 +83,7 @@ LPDIRECTDRAWSURFACE7 pDDOffscreen2 = NULL;
 LPDIRECTDRAWSURFACE7 pDDPanel = NULL;
 LPDIRECTDRAWSURFACE7 pDDTile[MAX_TILES];
 LPDIRECTDRAWSURFACE7 pDDMenuBegin, pDDMenuOpt;
-LPDIRECTDRAWSURFACE7 pDDSprite120x90 = NULL;
+LPDIRECTDRAWSURFACE7 pDDSprite120x90[33];
 
 //Function prototypes
 LRESULT CALLBACK WndProc (HWND, UINT, WPARAM, LPARAM);
@@ -143,8 +139,9 @@ class GameEngine
 	CMap Map;
 	CBmp dBar, TerrainType[256];
 	BOOL fLMBPressed, oldLMBPressed;
+	int UnitCount;
 
-	CUnit plane[PLANESM];
+	CUnit *plane, *first, *temp;
 public:
 	void GetMouseCoords(int &x, int &y);
 	void ShowMouse();
@@ -162,6 +159,7 @@ BOOL GameEngine::Update(int Reserved)
 	int m_x, m_y;
 	HDC hdc;
 	static HPEN hPen=CreatePen(PS_SOLID, 1, RGB(20,200,40));
+	static int add=0;
 
 	GetMouseCoords(m_x, m_y);
 	pDIKeyboard->GetDeviceState(sizeof(buffer), (LPVOID)&buffer);
@@ -182,14 +180,15 @@ BOOL GameEngine::Update(int Reserved)
 
 	if (IsSelecting&&(!LeftButtonPressed)) 
 	{
-		for (int i=0; i<PLANESM; i++)
+		plane=first;
+		while (plane)
 		{
 			POINT pt;
 			LONG tmp;
 			RECT rc, r_plane, temp;
 
-			pt.x=plane[i].GetX()-CurentX;
-			pt.y=plane[i].GetY()-CurentY;
+			pt.x=plane->GetX()-CurentX;
+			pt.y=plane->GetY()-CurentY;
 			rc.top=fmouse_y;
 			rc.left=fmouse_x;
 			rc.bottom=mouse_y;
@@ -203,46 +202,24 @@ BOOL GameEngine::Update(int Reserved)
 			if (rc.top>rc.bottom){ tmp=rc.top; rc.top=rc.bottom; rc.bottom=tmp;}
 			if (rc.left>rc.right){ tmp=rc.left; rc.left=rc.right; rc.right=tmp;}
 
-			if (IntersectRect(&temp, &rc, &r_plane)) plane[i].Select(TRUE);
-			else plane[i].Select(FALSE);
-
+			if (IntersectRect(&temp, &rc, &r_plane)) plane->Select(TRUE);
+			else plane->Select(FALSE);
+			plane=plane->next;
 		}
 		IsSelecting=FALSE;
 	}
 	if (LeftButtonPressed&&oldLMBPressed&&(!fLMBPressed)) IsSelecting=TRUE;
 	
-	/*if ((!LeftButtonPressed)&&(oldLMBPressed)&&(!fLMBPressed))
+	plane=first;
+	while (plane)
 	{
-		for (int i=0; i<PLANESM; i++)
-		{
-			POINT pt;
-			RECT r_plane;
-
-			pt.x=mouse_x;
-			pt.y=mouse_y;
-
-			r_plane.top=plane[i].GetX()-CurentX;
-			r_plane.left=plane[i].GetY()-CurentY;
-			r_plane.bottom=pt.y+90;
-			r_plane.right=pt.x+120;
-
-			if (PtInRect(&r_plane, pt)) plane[i].Select(TRUE);
-			else plane[i].Select(FALSE);
-		}
-	}*/
-
-	for (int i=0; i<PLANESM; i++)
-	{
-		if (RightButtonPressed&&plane[i].Selected()) plane[i].SetDestination(CurentX+m_x-60+rand()%10, CurentY+m_y-45+rand()%10);
-		plane[i].Update();
-		pDDSprite120x90->GetDC(&hdc);
-		if (FAILED(plane[i].SpriteArray[plane[i].GetCurrentFrame()].Draw(hdc))) return FALSE;
-		pDDSprite120x90->ReleaseDC(hdc);
+		if (RightButtonPressed&&plane->Selected()) plane->SetDestination(CurentX+m_x-60+rand()%10, CurentY+m_y-45+rand()%10);
+		plane->Update();
 
 		RECT DestRect;
 
-		SetRect(&DestRect, plane[i].GetX()-CurentX, plane[i].GetY()-CurentY, plane[i].GetX()+120-CurentX, plane[i].GetY()+90-CurentY);
-		if (plane[i].Selected())
+		SetRect(&DestRect, plane->GetX()-CurentX, plane->GetY()-CurentY, plane->GetX()+120-CurentX, plane->GetY()+90-CurentY);
+		if (plane->Selected())
 		{
 			pDDBackBuffer->GetDC(&hdc);
 			SelectObject(hdc, (HBRUSH) GetStockObject(NULL_BRUSH));
@@ -250,8 +227,9 @@ BOOL GameEngine::Update(int Reserved)
 			Ellipse(hdc, DestRect.left+15, DestRect.top+15, DestRect.right-15, DestRect.bottom-15);
 			pDDBackBuffer->ReleaseDC(hdc);
 		}
-		pDDBackBuffer->Blt(&DestRect, pDDSprite120x90, NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
-	}
+		pDDBackBuffer->Blt(&DestRect, pDDSprite120x90[plane->GetCurrentFrame()], NULL, DDBLT_WAIT | DDBLT_KEYSRC, NULL);
+		plane=plane->next;
+	}	
 
 	if (IsSelecting)
 	{
@@ -283,6 +261,91 @@ BOOL GameEngine::Update(int Reserved)
 	{
 		DeleteObject(hPen);
 		return FALSE;
+	}
+
+	if (KEYDOWN(buffer, DIK_ADD))
+	{
+		if (!add)
+		{
+			if (UnitCount==0)
+			{
+					first=(CUnit *) new CUnit;
+					first->SetPosition(320,200);
+					first->SetDestination(320,200);
+					first->Select(TRUE);
+					first->next=NULL;
+					first->prev=NULL;
+			}
+			else
+			{
+				temp=(CUnit *) new CUnit;
+				temp->SetPosition(320,200);
+				temp->SetDestination(320,200);
+				temp->Select(FALSE);
+				plane=first;
+				while (plane->next) plane=plane->next;
+				plane->next=temp;
+				temp->prev=plane;
+				temp->next=NULL;
+			}
+			add=1;
+			UnitCount++;
+		}
+	}
+	else add=0;
+
+	if (KEYDOWN(buffer, DIK_DELETE))
+	{
+		plane=first;
+		
+		if (plane->Selected())
+		{
+			if (UnitCount==1)
+			{
+				delete first;
+				first=NULL;
+			}
+			else
+			{
+				first=plane->next;
+				first->prev=NULL;
+				delete plane;
+				plane=first;
+			}
+			UnitCount--;
+		}
+		if (UnitCount>0)
+		{
+			while (plane->next)
+			{
+				if (plane->Selected())
+				{
+					temp=plane;
+					plane=plane->prev;
+					plane->next=temp->next;
+					temp=plane->next;
+					delete temp->prev;
+					temp->prev=plane;
+					UnitCount--;
+				}
+				plane=plane->next;
+			}
+			if (plane->Selected())
+			{
+				if (UnitCount==1)
+				{
+					delete first;
+					first=NULL;
+				}
+				else
+				{
+					temp=plane->prev;
+					temp->next=NULL;
+					delete plane;
+				}
+				UnitCount--;
+			}
+		}
 	}
 	return TRUE;
 }
@@ -324,12 +387,14 @@ GameEngine::Load(int Level, int Reserved)
 	LoadTerrainTiles();	
 	fLMBPressed=oldLMBPressed=FALSE;
 
-	for (int i=0; i<PLANESM; i++)
-	{
-		plane[i].SetPosition(320+i*100,200+i*100);
-		plane[i].SetDestination(320+i*100, 100+i*100);
-		plane[i].Select(TRUE);
-	}
+	first=(CUnit *) new CUnit;
+	first->SetPosition(320,200);
+	first->SetDestination(320,100);
+	first->Select(TRUE);
+	first->next=NULL;
+	first->prev=NULL;
+	UnitCount=1;
+
 	return TRUE;
 }
 
@@ -716,19 +781,40 @@ BOOL DirectDrawInit(HWND hwnd)
 		pDDTile[i]->SetColorKey(DDCKEY_SRCBLT,&key);
 	}
 
+	
+	
 	Offscreen.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
 	Offscreen.dwWidth = 120;
 	Offscreen.dwHeight = 90;
-
-	hr = pDD7->CreateSurface(&Offscreen,&pDDSprite120x90,NULL);
-	if (hr!=DD_OK)
+	CBmp Sprite;
+	for (i = 0; i < 33; i++)
 	{
-		MessageBox(hwnd,"Error while creating offscreen surfaces. Restart the computer and try again.","Error",MB_ICONEXCLAMATION | MB_OK);
-		return FALSE;
+		hr = pDD7->CreateSurface(&Offscreen,&pDDSprite120x90[i],NULL);
+		if (hr!=DD_OK)
+		{
+			MessageBox(hwnd,"Error while creating offscreen surfaces. Restart the computer and try again.","Error",MB_ICONEXCLAMATION | MB_OK);
+			return FALSE;
+		}	
+		
+		pDDSprite120x90[i]->SetColorKey(DDCKEY_SRCBLT,&key);
+		
+		HDC hdc;
+		Sprite.Load("C:\\GameArt\\Units\\Plane\\plane0.bmp");
+		pDDSprite120x90[0]->GetDC(&hdc);
+		if (FAILED(Sprite.Draw(hdc))) return FALSE;
+		pDDSprite120x90[0]->ReleaseDC(hdc);
+
+		for (int j = 1; j <=32; j++)
+		{
+			char buffer[256];
+			sprintf(buffer, "C:\\GameArt\\Units\\Plane\\plane%d.bmp", i);
+			Sprite.Load(buffer);
+
+			pDDSprite120x90[i]->GetDC(&hdc);
+			if (FAILED(Sprite.Draw(hdc))) return FALSE;
+			pDDSprite120x90[i]->ReleaseDC(hdc);
+		}	
 	}
-
-	pDDSprite120x90->SetColorKey(DDCKEY_SRCBLT,&key);
-
 
 	ZeroMemory(&Offscreen, sizeof(DDSURFACEDESC2));
 	Offscreen.dwSize=sizeof(DDSURFACEDESC2);
@@ -1065,7 +1151,6 @@ void UpdateMainMenu()
 
 	hr = pDDPrimary->Flip(NULL, DDFLIP_WAIT);
 	if (FAILED(hr)) PostQuitMessage(0);
-
 	
 	if (dims.rgbButtons[0] & 0x80) MEnter = TRUE;
 	if ((Selected == 0) && MEnter) State = GAME_ACTIVE;
