@@ -4,7 +4,6 @@
 
 #include "stdafx.h"
 #include "UnitPlane.h"
-#include <math.h>
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
