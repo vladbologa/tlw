@@ -944,7 +944,7 @@ BOOL BeginGame(HWND hwnd)
 
 	Engine.Load(0);
 
-	SetTimer(hwnd, 1, 550, (TIMERPROC) Actualizare);		//18fps
+	SetTimer(hwnd, 1, 550, (TIMERPROC) Actualizare);	//18fps
 	SetTimer(hwnd, 2, 55, (TIMERPROC) Actualizare);		//35fps
 	SetTimer(hwnd, 3, 55, (TIMERPROC) Actualizare);		//53fps
 	SetTimer(hwnd, 4, 55, (TIMERPROC) Actualizare);		//65fps
