@@ -12,6 +12,7 @@
 #include "struccenter.h"
 #include "strupyramid.h"
 #include "structoilplant.h"
+#include "structairport.h"
 
 #include <stdio.h>
 #include <streams.h>
@@ -20,8 +21,8 @@
 #include <ddraw.h>
 #include <dinput.h>
 
-#define  VERSION "v0.3.5b"
-
+#define  VERSION "v0.3.8b"
+ 
 #define KEYDOWN(name,key) (name[key] & 0x80)
 #define WM_GRAPHNOTIFY  WM_USER+13
 #define WM_BEGINGAME	WM_USER+14
@@ -40,10 +41,15 @@
 
 #define CCENTER			1
 #define OILPLANT		2
+#define PYRAMID			3
+#define AIRPORT			4
 
 #define LWU_AIR			1	
 #define LWU_PLANE		1
 #define LWU_F15			2
+
+#define UNIT			0
+#define STRUCT			1
 
 #define UNINIT_MENU		1
 #define UNINIT_GAME		2
@@ -101,12 +107,17 @@ LPDIRECTDRAWSURFACE7 pDDMenuSM, pDDSMCreate, pDDSMJoin;
 LPDIRECTDRAWSURFACE7 pDDMenuBeginTXT, pDDMenuBeginTXTSel, pDDMenuOptTXTSel, pDDMenuExitTXTSel;
 LPDIRECTDRAWSURFACE7 pDDSprite120x90[66];
 LPDIRECTDRAWSURFACE7 pDDSpriteOilPlant, pDDSprite185x160, pDDSprite170x160;
+LPDIRECTDRAWSURFACE7 pDDAirport, pDDAirportSelected, pDDAirportMask;
 LPDIRECTDRAWSURFACE7 pDDUnitSelection, pDDPyramid, pDDPyramidSelected, pDDPyramidMask;
 LPDIRECTDRAWSURFACE7 pDDCCenterSelected, pDDCCenterMask;
 LPDIRECTDRAWSURFACE7 pDDOilPlantSelected, pDDOilPlantMask;
 LPDIRECTDRAWSURFACE7 pDDMenuButtonPressed, pDDMenuButtonOver;
 LPDIRECTDRAWSURFACE7 pDDPlaneButton, pDDPlaneButtonPressed;
 LPDIRECTDRAWSURFACE7 pDDF15Button, pDDF15ButtonPressed;
+LPDIRECTDRAWSURFACE7 pDDCCenterButton, pDDCCenterButtonPressed;
+LPDIRECTDRAWSURFACE7 pDDOilPlantButton, pDDOilPlantButtonPressed;
+LPDIRECTDRAWSURFACE7 pDDAirportButton, pDDAirportButtonPressed;
+LPDIRECTDRAWSURFACE7 pDDPyramidButton, pDDPyramidButtonPressed;
 LPDIRECTDRAWSURFACE7 pDDMisile;
 
 //Function prototypes
@@ -166,14 +177,16 @@ class GameEngine
 	BOOL IsSelecting, WaitSelection;
 	BOOL fLMBPressed, oldLMBPressed, oldRMBPressed;
 	BOOL MenuButtonPressed, PlaneButtonPressed, PlaneButtonPressedOld, bF15BtnP, bF15BtnPOld;
+	BOOL bCCenterBP, bCCenterBPOld, bOPBP, bOPBPOld, bAirBP, bAirBPOld, bPyBP, bPyBPOld;
 	CMap Map;
 	int UnitCount, SelectedCount;
 	int StructSelType;
 	
 	CUnit *Unit, *first, *temp;
 	CStructure *Struct, *sfirst, *stemp;
-	CMisile Misile;
+	CUnit *Misile, *mfirst, *mtemp;
 public:
+	void AddMisile(CUnit *Parent, CUnit *uDest, CStructure *sDest, int iDestType);
 	void GetMouseCoords(int &x, int &y);
 	void ShowMouse();
 	void CorrectCoords();
@@ -187,18 +200,21 @@ public:
 BOOL GameEngine::Update(int Reserved)
 {
 	HDC hdc;
-	int m_x, m_y, iNrSel=0, iStructSel=0;
+	int m_x, m_y, iNrSel=0, iStructSel=0, iTypeAtt=0;
 	POINT pCursor;
-	RECT rButton;
+	RECT rButton,rButtonSm;
 	HRESULT hr;
 	static HPEN hPen=CreatePen(PS_SOLID, 1, RGB(20,200,40));
 	static int add=0;
-	BOOL bMouseOnPanel;
+	BOOL bMouseOnPanel, bAttack=FALSE;
 
 	GetMouseCoords(m_x, m_y);
 	pDIKeyboard->GetDeviceState(sizeof(buffer), (LPVOID)&buffer);
 	if (!bLeftBtnPressed) 
+	{
 		MenuButtonPressed=PlaneButtonPressed=bF15BtnP=FALSE;
+		bCCenterBP=bOPBP=bAirBP=bPyBP=FALSE;
+	}
 	bMouseOnPanel=MouseOnPanel();
 	
 //***********Scrolling***********
@@ -279,6 +295,10 @@ BOOL GameEngine::Update(int Reserved)
 			case 3:
 				r_Structure.bottom=pt.y+160;
 				r_Structure.right=pt.x+180;
+				break;
+			case 4:
+				r_Structure.bottom=pt.y+265;
+				r_Structure.right=pt.x+290;
 				break;
 			}
 						
@@ -380,6 +400,10 @@ BOOL GameEngine::Update(int Reserved)
 				r_Structure.bottom=r_Structure.top + 160;
 				r_Structure.right=r_Structure.left + 180;
 				break;
+			case 4:
+				r_Structure.bottom=r_Structure.top + 265;
+				r_Structure.right=r_Structure.left + 290;
+				break;
 			}
 
 			if (PtInRect(&r_Structure, pt))
@@ -420,6 +444,16 @@ BOOL GameEngine::Update(int Reserved)
 
 						if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
 							pDDPyramidMask->Unlock(NULL);
+					}
+					break;
+				case 4:
+					if (pDDAirportMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+					{
+						PBYTE mem=(PBYTE) sDesc.lpSurface;
+						poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+						if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
+							pDDAirportMask->Unlock(NULL);
 					}
 					break;
 				}
@@ -474,19 +508,221 @@ BOOL GameEngine::Update(int Reserved)
 			SetRect(&DestRect, Struct->GetX()-CurentX, Struct->GetY()-CurentY, Struct->GetX()+180-CurentX, Struct->GetY()+160-CurentY);
 			if (Struct->Selected()) pDDBackBuffer->Blt(&DestRect, pDDPyramidSelected, NULL, DDBLT_WAIT, NULL);
 			else pDDBackBuffer->Blt(&DestRect, pDDPyramid, NULL, DDBLT_WAIT, NULL);
-
+			break;
+		case 4:
+			SetRect(&DestRect, Struct->GetX()-CurentX, Struct->GetY()-CurentY, Struct->GetX()+290-CurentX, Struct->GetY()+265-CurentY);
+			if (Struct->Selected()) pDDBackBuffer->Blt(&DestRect, pDDAirportSelected, NULL, DDBLT_WAIT, NULL);
+			else pDDBackBuffer->Blt(&DestRect, pDDAirport, NULL, DDBLT_WAIT, NULL);
+			break;
 		}
 		Struct=Struct->next;
 	}
 
-	/*if (first) Misile.SetTarget(first);
-	Misile.Update();
-	SetRect(&DestRect, Misile.GetX()-CurentX, Misile.GetY()-CurentY,40+Misile.GetX()-CurentX, 40+Misile.GetY()-CurentY) ;
-	pDDBackBuffer->Blt(&DestRect, pDDMisile, NULL, DDBLT_WAIT|DDBLT_KEYSRC, NULL);*/
+	if (!RightButtonPressed&&oldRMBPressed&&!bMouseOnPanel) 
+	{
+		BOOL bUSel = FALSE;
+		RECT r_Structure, r_Unit;
+		int CursorOnUnit = 0, CursorOnStructure = 0;
+		int iNrAt=0, iStrAt=0;
+		POINT pt;
+		
+		pt.x=mouse_x;
+		pt.y=mouse_y;
+
+		Unit=first;
+		while (Unit)
+		{
+			Unit->Attack(FALSE);
+			Unit=Unit->next;
+		}
+		Struct=sfirst;
+		while (Struct)
+		{
+			Struct->Attack(FALSE);
+			Struct=Struct->next;
+		}
+
+		Unit=first;
+		if (Unit) while (Unit->next) Unit=Unit->next;
+		while (Unit)
+		{
+			CursorOnUnit = 0;
+			r_Unit.top=Unit->GetY()-CurentY;
+			r_Unit.left=Unit->GetX()-CurentX;
+			r_Unit.bottom=r_Unit.top+90;
+			r_Unit.right=r_Unit.left+120;
+
+			if (PtInRect(&r_Unit, pt))
+			{
+				int relx, rely, poz;
+				DDSURFACEDESC2 sDesc;
+				sDesc.dwSize=sizeof(sDesc);
+				int frame=Unit->GetCurrentFrame();
+				
+				relx=mouse_x-r_Unit.left;
+				rely=mouse_y-r_Unit.top;
+				if (Unit->GetSubType()==2) frame+=33;
+				if (pDDSprite120x90[frame]->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+				{
+					PBYTE mem=(PBYTE) sDesc.lpSurface;
+					poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+					if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnUnit=1;
+					pDDSprite120x90[frame]->Unlock(NULL);
+				}
+			}
+			
+			if (CursorOnUnit)
+			{ 	
+				if (!bUSel)
+				{
+					Unit->Attack(TRUE);
+					bAttack=TRUE;
+					bUSel=TRUE;
+					iNrAt++;
+					iTypeAtt=1;
+				}
+				else Unit->Attack(FALSE);
+			}
+			else Unit->Attack(FALSE);
+			Unit=Unit->prev;
+		}
+		
+		Struct=sfirst;
+		while (Struct)
+		{
+			CursorOnStructure = 0;
+			r_Structure.top=Struct->GetY()-CurentY;
+			r_Structure.left=Struct->GetX()-CurentX;
+			switch (Struct->GetType())
+			{
+			case 1:
+				r_Structure.bottom=r_Structure.top + 160;
+				r_Structure.right=r_Structure.left + 185;
+				break;
+			case 2:
+				r_Structure.bottom=r_Structure.top + 212;
+				r_Structure.right=r_Structure.left + 295;
+				break;
+			case 3:
+				r_Structure.bottom=r_Structure.top + 160;
+				r_Structure.right=r_Structure.left + 180;
+				break;
+			case 4:
+				r_Structure.bottom=r_Structure.top + 265;
+				r_Structure.right=r_Structure.left + 290;
+				break;
+			}
+
+			if (PtInRect(&r_Structure, pt))
+			{
+				int relx, rely, poz;
+				DDSURFACEDESC2 sDesc;
+				sDesc.dwSize=sizeof(sDesc);	
+					
+				relx=mouse_x-r_Structure.left;
+				rely=mouse_y-r_Structure.top;
+				switch (Struct->GetType())
+				{
+				case 1:
+					if (pDDCCenterMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+					{
+						PBYTE mem=(PBYTE) sDesc.lpSurface;
+						poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+						if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
+							pDDCCenterMask->Unlock(NULL);
+					}
+					break;
+				case 2:
+					if (pDDOilPlantMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+					{
+						PBYTE mem=(PBYTE) sDesc.lpSurface;
+						poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+						if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
+							pDDOilPlantMask->Unlock(NULL);
+					}
+					break;
+				case 3:
+					if (pDDPyramidMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+					{
+						PBYTE mem=(PBYTE) sDesc.lpSurface;
+						poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+						if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
+							pDDPyramidMask->Unlock(NULL);
+					}
+					break;
+				case 4:
+					if (pDDAirportMask->Lock(NULL,&sDesc,DDLOCK_WAIT,NULL)==DD_OK)
+					{
+						PBYTE mem=(PBYTE) sDesc.lpSurface;
+						poz=rely*sDesc.lPitch+relx*sDesc.ddpfPixelFormat.dwRGBBitCount/8;
+
+						if (mem[poz]!=0&&mem[poz+1]!=0) CursorOnStructure=1;
+							pDDAirportMask->Unlock(NULL);
+					}
+					break;
+				}
+			}
+
+			if (CursorOnStructure&&(!iNrAt))
+			{
+				Struct->Attack(TRUE);
+				bAttack=TRUE;
+				iNrAt++;
+				iStrAt++;
+				iTypeAtt=2;
+			}
+			else Struct->Attack(FALSE);
+			Struct=Struct->next;
+		}
+	}
+
+	if (iTypeAtt==1)
+	{
+		Unit=first;
+		while (Unit)
+		{
+			if (Unit->Attacked()) break;
+			Unit=Unit->next;
+		}
+		temp=first;
+		while (temp)
+		{
+			if (temp->Selected()) AddMisile(temp, Unit, NULL, UNIT);
+			temp=temp->next;
+		}
+	}
+	else if (iTypeAtt==2)
+	{
+		Struct=sfirst;
+		while (Struct)
+		{
+			if (Struct->Attacked()) break;
+			Struct=Struct->next;
+		}
+		temp=first;
+		while (temp)
+		{
+			if (temp->Selected()) AddMisile(temp, NULL, Struct, STRUCT);
+			temp=temp->next;
+		}
+	}
+
+	Misile=mfirst;
+	while (Misile)
+	{
+		Misile->Update();
+		SetRect(&DestRect, Misile->GetX()-CurentX, Misile->GetY()-CurentY,40+Misile->GetX()-CurentX, 40+Misile->GetY()-CurentY) ;
+		pDDBackBuffer->Blt(&DestRect, pDDMisile, NULL, DDBLT_WAIT|DDBLT_KEYSRC, NULL);
+		Misile=Misile->next;
+	}
 
 	int vx,vy,c=0,row=1,p;
 	int tx = 0,ty = 0;
-		
+
 	Unit=first;
 	while (Unit)
 	{
@@ -497,11 +733,11 @@ BOOL GameEngine::Update(int Reserved)
 		}
 		Unit=Unit->next;
 	}
-	
+
 	Unit=first;
 	while (Unit)
 	{
-		if (!RightButtonPressed&&oldRMBPressed&&Unit->Selected()&&!bMouseOnPanel) 
+		if (!RightButtonPressed&&oldRMBPressed&&Unit->Selected()&&!bMouseOnPanel&&!bAttack) 
 		{
 			c++;
 			if (SelectedCount%2)
@@ -518,10 +754,7 @@ BOOL GameEngine::Update(int Reserved)
 					vx=(-20)*p;
 					vy=20*p;
 				}
-				else
-				{
-					vx=vy=0;
-				}
+				else vx=vy=0;
 			}
 			else
 			{
@@ -614,12 +847,12 @@ BOOL GameEngine::Update(int Reserved)
 		}
 		else pDDBackBuffer->Blt(&rButton, pDDMenuButtonOver, NULL, DDBLT_WAIT, NULL);
 	
-	Struct=sfirst;
-	if (StructSelType==CCENTER)
+	if (StructSelType==AIRPORT)
 	{
 		//Add Plane Button
 		SetRect(&rButton,715,130,715+80,130+60);
-		if (PtInRect(&rButton, pCursor))
+		SetRect(&rButtonSm,715,130,715+80,130+54);
+		if (PtInRect(&rButtonSm, pCursor))
 		{
 			if (bLeftBtnPressed)
 			{
@@ -634,6 +867,8 @@ BOOL GameEngine::Update(int Reserved)
 		{		
 			if (!add)
 			{
+				Struct=sfirst;
+				while (!Struct->Selected()) Struct=Struct->next;
 				AddUnit(LWU_AIR, LWU_PLANE, Struct);
 				add=1;
 			}
@@ -642,7 +877,8 @@ BOOL GameEngine::Update(int Reserved)
 
 		//Add F15 Button
 		SetRect(&rButton,715,185,715+80,185+60);
-		if (PtInRect(&rButton, pCursor))
+		SetRect(&rButtonSm,715,185,715+80,185+54);
+		if (PtInRect(&rButtonSm, pCursor))
 		{
 			if (bLeftBtnPressed)
 			{
@@ -657,11 +893,75 @@ BOOL GameEngine::Update(int Reserved)
 		{		
 			if (!add)
 			{
+				Struct=sfirst;
+				while (!Struct->Selected()) Struct=Struct->next;
 				AddUnit(LWU_AIR, LWU_F15, Struct);
 				add=1;
 			}
 		}
 		else add=0;
+	}
+	else if (StructSelType==CCENTER)
+	{
+		//Add Command Center Button
+		SetRect(&rButton,715,130,715+80,130+60);
+		SetRect(&rButtonSm,715,130,715+80,130+54);
+		if (PtInRect(&rButtonSm, pCursor))
+		{
+			if (bLeftBtnPressed)
+			{
+				if (!oldLMBPressed) bCCenterBP=TRUE;
+				if (bCCenterBP) pDDBackBuffer->Blt(&rButton, pDDCCenterButtonPressed, NULL, DDBLT_WAIT, NULL);
+				else pDDBackBuffer->Blt(&rButton, pDDCCenterButton, NULL, DDBLT_WAIT, NULL);
+			}
+			else pDDBackBuffer->Blt(&rButton, pDDCCenterButton, NULL, DDBLT_WAIT, NULL);
+		}
+		else pDDBackBuffer->Blt(&rButton, pDDCCenterButton, NULL, DDBLT_WAIT, NULL);
+
+		//Add OilPlant Button
+		SetRect(&rButton,715,185,715+80,185+60);
+		SetRect(&rButtonSm,715,185,715+80,185+54);
+		if (PtInRect(&rButtonSm, pCursor))
+		{
+			if (bLeftBtnPressed)
+			{
+				if (!oldLMBPressed) bOPBP=TRUE;
+				if (bOPBP) pDDBackBuffer->Blt(&rButton, pDDOilPlantButtonPressed, NULL, DDBLT_WAIT, NULL);
+				else pDDBackBuffer->Blt(&rButton, pDDOilPlantButton, NULL, DDBLT_WAIT, NULL);
+			}
+			else pDDBackBuffer->Blt(&rButton, pDDOilPlantButton, NULL, DDBLT_WAIT, NULL);
+		}
+		else pDDBackBuffer->Blt(&rButton, pDDOilPlantButton, NULL, DDBLT_WAIT, NULL);
+
+		//Add Airport Button
+		SetRect(&rButton,715,240,715+80,240+60);
+		SetRect(&rButtonSm,715,240,715+80,240+54);
+		if (PtInRect(&rButtonSm, pCursor))
+		{
+			if (bLeftBtnPressed)
+			{
+				if (!oldLMBPressed) bAirBP=TRUE;
+				if (bAirBP) pDDBackBuffer->Blt(&rButton, pDDAirportButtonPressed, NULL, DDBLT_WAIT, NULL);
+				else pDDBackBuffer->Blt(&rButton, pDDAirportButton, NULL, DDBLT_WAIT, NULL);
+			}
+			else pDDBackBuffer->Blt(&rButton, pDDAirportButton, NULL, DDBLT_WAIT, NULL);
+		}
+		else pDDBackBuffer->Blt(&rButton, pDDAirportButton, NULL, DDBLT_WAIT, NULL);
+
+		//Add Pyramid Button
+		SetRect(&rButton,715,295,715+80,295+60);
+		SetRect(&rButtonSm,715,295,715+80,295+54);
+		if (PtInRect(&rButtonSm, pCursor))
+		{
+			if (bLeftBtnPressed)
+			{
+				if (!oldLMBPressed) bPyBP=TRUE;
+				if (bPyBP) pDDBackBuffer->Blt(&rButton, pDDPyramidButtonPressed, NULL, DDBLT_WAIT, NULL);
+				else pDDBackBuffer->Blt(&rButton, pDDPyramidButton, NULL, DDBLT_WAIT, NULL);
+			}
+			else pDDBackBuffer->Blt(&rButton, pDDPyramidButton, NULL, DDBLT_WAIT, NULL);
+		}
+		else pDDBackBuffer->Blt(&rButton, pDDPyramidButton, NULL, DDBLT_WAIT, NULL);
 	}
 		
 	/*pDDBackBuffer->GetDC(&hdc);
@@ -684,6 +984,10 @@ BOOL GameEngine::Update(int Reserved)
 	oldRMBPressed=RightButtonPressed;
 	PlaneButtonPressedOld=PlaneButtonPressed;
 	bF15BtnPOld=bF15BtnP;
+	bCCenterBPOld=bCCenterBP;
+	bOPBPOld=bOPBP;
+	bAirBPOld=bAirBP;
+	bPyBPOld=bPyBP;
 
 	pDDPrimary->Flip(NULL, DDFLIP_WAIT);
 	
@@ -771,6 +1075,33 @@ void GameEngine::AddUnit(int iType, int iSubType, CStructure *Parent)
 		temp->next=NULL;
 	}
 	UnitCount++;
+}
+
+void GameEngine::AddMisile(CUnit *Parent, CUnit *uDest, CStructure *sDest, int iDestType)
+{
+	if (!mfirst)
+	{
+		mfirst=(CMisile *) new CMisile;
+		mfirst->SetPosition(Parent->GetX(), Parent->GetY());
+		if (iDestType==UNIT)
+			((CMisile *)mfirst)->SetTarget(uDest, NULL, 1);
+		else if (iDestType==STRUCT)
+			((CMisile *)mfirst)->SetTarget(NULL, sDest,2);
+		mfirst->next=NULL;
+		mfirst->prev=NULL;
+	}
+	else
+	{
+		mtemp=(CMisile *) new CMisile;
+		mtemp->SetPosition(Parent->GetX(), Parent->GetY());
+		if (iDestType==UNIT)
+			((CMisile *)mtemp)->SetTarget(uDest, NULL, 1);
+		else if (iDestType==STRUCT)
+			((CMisile *)mtemp)->SetTarget(NULL, sDest,2);
+		mtemp->next=mfirst;
+		mtemp->prev=NULL;
+		mfirst=mtemp;
+	}
 }
 
 BOOL GameEngine::UpdateTerrain(int x, int y)
@@ -881,11 +1212,13 @@ GameEngine::Load(int Level, int Reserved)
 	IsSelecting = WaitSelection = FALSE;
 	fLMBPressed = oldLMBPressed = oldRMBPressed = FALSE;
 	MenuButtonPressed = PlaneButtonPressed = PlaneButtonPressedOld = bF15BtnP = bF15BtnPOld = FALSE;
+	bCCenterBP = bCCenterBPOld = bOPBP = bOPBPOld = bAirBP = bAirBPOld = bPyBP = bPyBPOld = FALSE;
+	first=NULL;
+	mfirst=NULL;
 
 	Map.Load(Level);
 	LoadTerrainTiles();	
-	Misile.SetPosition(0,0);
-
+	
 	Struct=(CStructCCenter *) new CStructCCenter;
 	Struct->SetPosition(160,160);
 	Struct->prev=NULL;
@@ -897,6 +1230,10 @@ GameEngine::Load(int Level, int Reserved)
 	Struct->next=stemp;
 	stemp->SetPosition(1440,800);
 	stemp->prev=Struct;
+	Struct=stemp;
+	stemp=(CStructAirport *) new CStructAirport;
+	Struct->next=stemp;
+	stemp->SetPosition(800,160);
 	stemp->next=NULL;
 		
 	bmp.Load("data\\interface\\mb01.bmp");
@@ -924,6 +1261,46 @@ GameEngine::Load(int Level, int Reserved)
 	bmp.Draw(hdc);
 	pDDPlaneButton->ReleaseDC(hdc);
 
+	bmp.Load("data\\interface\\cb01.bmp");
+	pDDCCenterButton->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDCCenterButton->ReleaseDC(hdc);
+
+	bmp.Load("data\\interface\\cb02.bmp");
+	pDDCCenterButtonPressed->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDCCenterButtonPressed->ReleaseDC(hdc);
+
+	bmp.Load("data\\interface\\ob01.bmp");
+	pDDOilPlantButton->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDOilPlantButton->ReleaseDC(hdc);
+
+	bmp.Load("data\\interface\\ob02.bmp");
+	pDDOilPlantButtonPressed->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDOilPlantButtonPressed->ReleaseDC(hdc);
+
+	bmp.Load("data\\interface\\ab01.bmp");
+	pDDAirportButton->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDAirportButton->ReleaseDC(hdc);
+
+	bmp.Load("data\\interface\\ab02.bmp");
+	pDDAirportButtonPressed->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDAirportButtonPressed->ReleaseDC(hdc);
+
+	bmp.Load("data\\interface\\yb01.bmp");
+	pDDPyramidButton->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDPyramidButton->ReleaseDC(hdc);
+
+	bmp.Load("data\\interface\\yb02.bmp");
+	pDDPyramidButtonPressed->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDPyramidButtonPressed->ReleaseDC(hdc);
+
 	bmp.Load("data\\interface\\fb01.bmp");
 	pDDF15Button->GetDC(&hdc);
 	bmp.Draw(hdc);
@@ -939,7 +1316,7 @@ GameEngine::Load(int Level, int Reserved)
 	bmp.Draw(hdc);
 	pDDPlaneButtonPressed->ReleaseDC(hdc);
 
-	bmp.Load("data\\Interface\\Uselect.bmp");
+	bmp.Load("data\\Interface\\uselect.bmp");
 	pDDUnitSelection->GetDC(&hdc);
 	bmp.Draw(hdc);
 	pDDUnitSelection->ReleaseDC(hdc);
@@ -998,6 +1375,21 @@ GameEngine::Load(int Level, int Reserved)
 	pDDPyramidMask->GetDC(&hdc);
 	bmp.Draw(hdc);
 	pDDPyramidMask->ReleaseDC(hdc);
+
+	bmp.Load("data\\structures\\airport.bmp");
+	pDDAirport->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDAirport->ReleaseDC(hdc);
+
+	bmp.Load("data\\structures\\airportsel.bmp");
+	pDDAirportSelected->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDAirportSelected->ReleaseDC(hdc);
+
+	bmp.Load("data\\structures\\airportcont.bmp");
+	pDDAirportMask->GetDC(&hdc);
+	bmp.Draw(hdc);
+	pDDAirportMask->ReleaseDC(hdc);
 
 	bmp.Load("data\\units\\misile.bmp");
 	pDDMisile->GetDC(&hdc);
@@ -1454,6 +1846,15 @@ BOOL CreateGameOffscreenSurfaces()
 	pDD7->CreateSurface(&Offscreen, &pDDPlaneButtonPressed, NULL);
 	pDD7->CreateSurface(&Offscreen, &pDDF15Button, NULL);
 	pDD7->CreateSurface(&Offscreen, &pDDF15ButtonPressed,NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDCCenterButton, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDCCenterButtonPressed,NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDOilPlantButton, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDOilPlantButtonPressed,NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDAirportButton, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDAirportButtonPressed,NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDPyramidButton, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDPyramidButtonPressed,NULL);
+
 
 	Offscreen.dwWidth = 295;
 	Offscreen.dwHeight = 212;
@@ -1466,7 +1867,13 @@ BOOL CreateGameOffscreenSurfaces()
 	pDD7->CreateSurface(&Offscreen, &pDDPyramid, NULL);
 	pDD7->CreateSurface(&Offscreen, &pDDPyramidSelected, NULL);
 	pDD7->CreateSurface(&Offscreen, &pDDPyramidMask, NULL);
-	
+
+	Offscreen.dwWidth = 290;
+	Offscreen.dwHeight = 265;
+	pDD7->CreateSurface(&Offscreen, &pDDAirport, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDAirportSelected, NULL);
+	pDD7->CreateSurface(&Offscreen, &pDDAirportMask, NULL);
+
 	Offscreen.dwWidth = 40;
 	Offscreen.dwHeight = 40;
 	pDD7->CreateSurface(&Offscreen, &pDDMisile, NULL);
@@ -1480,12 +1887,23 @@ void DirectDrawUnInit(int iType)
 	if (iType==UNINIT_GAME)
 	{
 		RELEASE(pDDMisile);
+		RELEASE(pDDAirportMask);
+		RELEASE(pDDAirportSelected);
+		RELEASE(pDDAirport);
 		RELEASE(pDDPyramidMask);
 		RELEASE(pDDPyramidSelected);
 		RELEASE(pDDPyramid);
 		RELEASE(pDDOilPlantMask);
 		RELEASE(pDDOilPlantSelected);
 		RELEASE(pDDSpriteOilPlant);
+		RELEASE(pDDPyramidButtonPressed);
+		RELEASE(pDDPyramidButton);
+		RELEASE(pDDAirportButtonPressed);
+		RELEASE(pDDAirportButton);
+		RELEASE(pDDOilPlantButtonPressed);
+		RELEASE(pDDOilPlantButton);
+		RELEASE(pDDCCenterButtonPressed);
+		RELEASE(pDDCCenterButton);
 		RELEASE(pDDF15ButtonPressed);
 		RELEASE(pDDF15Button);
 		RELEASE(pDDPlaneButtonPressed);
