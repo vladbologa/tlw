@@ -255,6 +255,17 @@ BOOL GameEngine::Update(int Reserved)
 	}
 	oldLMBPressed=LeftButtonPressed;
 
+	hr = pDDBackBuffer->GetDC(&hdc);
+	//if (FAILED(hr)) PostQuitMessage(0);
+	SetTextAlign(hdc, TA_BOTTOM | TA_RIGHT);
+	SetBkMode(hdc, TRANSPARENT);
+	SetTextColor(hdc, RGB(255,255,255));
+	char _itoa_t[10];
+	_itoa(UnitCount, _itoa_t,10);
+	TextOut(hdc, 640, 480, _itoa_t, strlen(_itoa_t));
+	hr = pDDBackBuffer->ReleaseDC(hdc);
+	//if (FAILED(hr)) PostQuitMessage(0);
+
 	pDDPrimary->Flip(NULL, DDFLIP_WAIT);
 	
 	if (KEYDOWN(buffer, DIK_ESCAPE))
