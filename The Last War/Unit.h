@@ -32,7 +32,7 @@ public:
 	void Select(BOOL b) {IsSelected=b;};
 	BOOL Selected() {return IsSelected;};
 	int Update();
-	CUnit *next;
+	CUnit *next,*prev;
 	CUnit();
 	virtual ~CUnit();
 
