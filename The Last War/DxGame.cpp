@@ -87,19 +87,17 @@ LPDIRECTDRAWSURFACE7 pDDSprite120x90[33];
 
 //Function prototypes
 LRESULT CALLBACK WndProc (HWND, UINT, WPARAM, LPARAM);
-BOOL BeginGame(HWND);
+BOOL StartGame(HWND);
 BOOL DirectDrawInit(HWND);
 BOOL DirectInputInit(HWND);
 BOOL TileInScreen(RECT);
 void DirectDrawUnInit();
 void DirectInputUnInit();
-void CALLBACK Actualizare(HWND, UINT, UINT, DWORD);
-void UpdateGame();
-void UpdateMainMenu();
+int UpdateGame();
+int UpdateMainMenu();
 void LoadMenuFiles();
 void PlayFile(LPSTR, HWND);
 void Loading(int, int);
-void InsertImage();
 
 //***************List Class*****************
 
@@ -576,17 +574,16 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance,
           TranslateMessage (&msg);
           DispatchMessage (&msg);
           }
-	 CoUninitialize();
-     return msg.wParam;
-     }
+	CoUninitialize();
+    return msg.wParam;
+}
 
 LRESULT CALLBACK WndProc (HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (iMsg)
 	{
 	case WM_CREATE:
-		/*if (!BeginGame(hwnd))
-			PostQuitMessage(0);*/
+		//if (!StartGame(hwnd)) PostQuitMessage(0);
 		PlayFile("c:\\GameArt\\Mini-Intro.avi", hwnd);
 		return 0;
 
@@ -609,7 +606,7 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
                     HELPER_RELEASE(pimex);
 
                     FilmState = STOPPED;
-					if (!BeginGame(hwnd))
+					if (!StartGame(hwnd))
 						PostQuitMessage(0);
 					break;
                   }
@@ -617,8 +614,6 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 		return 0;
 
 	case WM_DESTROY:
-		DirectDrawUnInit();
-		DirectInputUnInit();
 		PostQuitMessage (0);
 		return 0;
 	}
@@ -830,8 +825,6 @@ BOOL DirectDrawInit(HWND hwnd)
 
 		pDDTile[i]->SetColorKey(DDCKEY_SRCBLT,&key);
 	}
-
-	
 	
 	Offscreen.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
 	Offscreen.dwWidth = 120;
@@ -849,21 +842,14 @@ BOOL DirectDrawInit(HWND hwnd)
 		pDDSprite120x90[i]->SetColorKey(DDCKEY_SRCBLT,&key);
 		
 		HDC hdc;
-		Sprite.Load("C:\\GameArt\\Units\\Plane\\plane0.bmp");
-		pDDSprite120x90[0]->GetDC(&hdc);
+
+		char buffer[256];
+		sprintf(buffer, "C:\\GameArt\\Units\\Plane\\plane%d.bmp", i);
+		Sprite.Load(buffer);
+
+		pDDSprite120x90[i]->GetDC(&hdc);
 		if (FAILED(Sprite.Draw(hdc))) return FALSE;
-		pDDSprite120x90[0]->ReleaseDC(hdc);
-
-		for (int j = 1; j <=32; j++)
-		{
-			char buffer[256];
-			sprintf(buffer, "C:\\GameArt\\Units\\Plane\\plane%d.bmp", i);
-			Sprite.Load(buffer);
-
-			pDDSprite120x90[i]->GetDC(&hdc);
-			if (FAILED(Sprite.Draw(hdc))) return FALSE;
-			pDDSprite120x90[i]->ReleaseDC(hdc);
-		}	
+		pDDSprite120x90[i]->ReleaseDC(hdc);
 	}
 
 	ZeroMemory(&Offscreen, sizeof(DDSURFACEDESC2));
@@ -942,24 +928,48 @@ BOOL DirectDrawInit(HWND hwnd)
 
 void DirectDrawUnInit()
 {
+	pDDPanel->Release();
+	pDDPanel=NULL;
+	pDDMenuOpt->Release();
+	pDDMenuOpt=NULL;
+	pDDMenuBegin->Release();
+	pDDMenuBegin=NULL;
 	pDDCursor->Release();
-	for (int i = 0; i<MAX_TILES; i++)
-		pDDTile[i]->Release();
-	pDDOffscreen->Release();
+	pDDCursor=NULL;
 	pDDOffscreen2->Release();
+	pDDOffscreen2=NULL;
+	pDDOffscreen->Release();
+	pDDOffscreen=NULL;
+	for (int i=32; i>=0; i--)
+	{
+			pDDSprite120x90[i]->Release();
+			pDDSprite120x90[i]=NULL;
+	}
+	for (i=MAX_TILES-1; i>=0; i--)
+	{
+		pDDTile[i]->Release();
+		pDDTile[i]=NULL;
+	}
 	pDDClipper->Release();
+	pDDClipper=NULL;
 	pDDBackBuffer->Release();
+	pDDBackBuffer=NULL;
 	pDDPrimary->Release();
+	pDDPrimary=NULL;
 	pDD7->Release();
+	pDD7=NULL;
 }
 
 void DirectInputUnInit()
 {
 	pDIMouse->Unacquire();
 	pDIMouse->Release();
+	pDIMouse=NULL;
 	pDIKeyboard->Unacquire();
 	pDIKeyboard->Release();
+	pDIKeyboard=NULL;
 	pDI->Release();
+	pDI=NULL;
 }
 
 void Loading(int BackgroundType, int Motion)
@@ -1065,25 +1075,9 @@ void LoadMenuFiles()
 	}
 	OptActual->next = OptFirst;
 	OptActual = OptFirst;
-
 }
 
-void InsertImage()
-{
-	RECT DestRect;
-
-	for (int y = -480; y<=0; y+=2)
-	{
-		SetRect(&DestRect,0, y, 640, y+480);
-		if (y < (-470))
-			pDDBackBuffer->Blt(NULL, pDDOffscreen, NULL, DDBLT_WAIT, NULL);
-		pDDBackBuffer->Blt(&DestRect, pDDOffscreen2, NULL, DDBLT_WAIT, NULL);
-		pDDPrimary->Flip(NULL, DDFLIP_WAIT);
-	}
-	Sleep(2000);
-}
-
-BOOL BeginGame(HWND hwnd)
+BOOL StartGame(HWND hwnd)
 {
 	if (INIT_ERROR) return FALSE;
 	if (!DirectInputInit(hwnd))
@@ -1103,19 +1097,15 @@ BOOL BeginGame(HWND hwnd)
 
 	Loading(LBT_BLACK, LM_STATIC);
 	LoadMenuFiles();
-
 	Engine.Load(0);
 
-	SetTimer(hwnd, 1, 550, (TIMERPROC) Actualizare);	//18fps
-	SetTimer(hwnd, 2, 55, (TIMERPROC) Actualizare);		//35fps
-	SetTimer(hwnd, 3, 55, (TIMERPROC) Actualizare);		//53fps
-	SetTimer(hwnd, 4, 55, (TIMERPROC) Actualizare);		//65fps
-	SetTimer(hwnd, 5, 55, (TIMERPROC) Actualizare);		//67fps
-	SetTimer(hwnd, 6, 55, (TIMERPROC) Actualizare);		//73fps
-	return TRUE;
+	while (UpdateGame());
+	DirectInputUnInit();
+	DirectDrawUnInit();
+	return FALSE;
 }
 
-void UpdateMainMenu()
+int UpdateMainMenu()
 {
 	static Selected = 0, SelOld, contor = 0, c = 0;
 	static CurX = 320, CurY = 160, CurXAnte = 320, CurYAnte = 160;
@@ -1205,18 +1195,19 @@ void UpdateMainMenu()
 	
 	if (dims.rgbButtons[0] & 0x80) MEnter = TRUE;
 	if ((Selected == 1) && MEnter) State = GAME_ACTIVE;
+	return 1;
 }
 
-void CALLBACK Actualizare(HWND hwnd, UINT iMsg, UINT iTimerID, DWORD dwTime)
+int UpdateGame()
 {
 	switch (State)
 	{
 		case GAME_ACTIVE:
-			while (Engine.Update());
-			PostQuitMessage(0);
+			if (!Engine.Update()) return 0;
 			break;
 		case MAIN_MENU:
-			UpdateMainMenu();
+			if (!UpdateMainMenu()) return 0;
 			break;
 	}
+	return 1;
 }
