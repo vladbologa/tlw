@@ -14,7 +14,9 @@
 class CStructOilPlant : public CStructure  
 {
 public:
+	int Update();
 	CStructOilPlant();
+	virtual int GetType() {return 2; };
 	virtual ~CStructOilPlant();
 
 };

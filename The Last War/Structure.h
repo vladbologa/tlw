@@ -10,7 +10,6 @@
 #endif // _MSC_VER > 1000
 
 #include "bmp.h"
-#include <stdio.h>
 
 class CStructure
 {

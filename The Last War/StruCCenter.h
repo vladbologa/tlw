@@ -13,8 +13,6 @@
 
 class CStructCCenter : public CStructure  
 {	
-	int modxold, modyold;
-	int odd;
 public:
 	int Update();
 	CStructCCenter();

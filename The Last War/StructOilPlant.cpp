@@ -18,3 +18,8 @@ CStructOilPlant::~CStructOilPlant()
 {
 
 }
+
+int CStructOilPlant::Update()
+{
+	return 1;
+}

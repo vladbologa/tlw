@@ -13,13 +13,14 @@
 
 class CUnitPlane : public CUnit  
 {
-	int modxold, modyold;
-	int odd;
+	int modxold, modyold, odd;
+
 public:
 	int Update();
 	CUnitPlane();
 	virtual ~CUnitPlane();
 
+private:
 };
 
 #endif // !defined(AFX_UNITPLANE_H__7BF6C8C6_08DF_41CE_A156_A63ECFB1B868__INCLUDED_)

@@ -1,9 +1,31 @@
 The Last War - Version History
 ------------------------------
 
+TLW 0.3.4 (under development)
+
+TLW 0.3.3 (jan. 2002)
+*tileset facelift (=>nicer graphics :P)
+*added oil plant (new structure)
+*added multiple structure support
+*added start game menu
+*improved structure selection
+*fixes & improvements
+
+TLW 0.3.2 (jan. 2002)
+*added the F15 (new unit)
+*minor fixes and improvements
+
+TLW 0.3.1 (jan. 2002)
+*improved menu-bar
+*added functionality to the menu-bar
+*fixed and improved maps
+*changed tile size (to 160x160)
+*added music (mp3 support)
+*bugfixes
+
 TLW 0.3 (jan. 2002):
 *finished main menu :)
-*changed menubar
+*changed menu-bar
 *structure classes
 
 TLW 0.2.5 (june 2001):

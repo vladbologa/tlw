@@ -10,19 +10,23 @@
 #endif // _MSC_VER > 1000
 
 #include "bmp.h"
-#include <stdio.h>
+#include "structure.h"
 
 class CUnit  
 {
 protected:
+	CStructure *Parent;
 	int PosX, PosY;
 	int DestX, DestY;
-	int CurrentFrame;
-	int TurnDestFrame;
+	int CurrentFrame, TurnDestFrame;
+	int iSubType;
 	BOOL IsTurning;
 	BOOL IsSelected;
 
 public:
+	int GetSubType() { return iSubType; };
+	void SetSubType(int iNewType) { iSubType=iNewType; };
+	void SetParent(CStructure *p);
 	int GetCurrentFrame() { return CurrentFrame; };
 	int GetX(){ return PosX; };
 	int GetY(){ return PosY; };
